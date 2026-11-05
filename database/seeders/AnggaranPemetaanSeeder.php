@@ -89,6 +89,9 @@ class AnggaranPemetaanSeeder extends Seeder
         ] as [$k, $unit]) {
             $r[] = ['CL.7459', 'ABR.006', $k, '', $unit, null];
         }
+        // Pengecualian: subkomponen 071.CC dipindah dari Sesdep D2 ke BIRO UHM
+        // (aturan subkomponen mengalahkan aturan komponen 071 di atas).
+        $r[] = ['CL.7459', 'ABR.006', '', '071.CC', 'BIRO UHM', null];
 
         // D4 - ABR.006 (Sesdep D4): komponen 076, subkomponen AC / FF / MR
         $r[] = ['CL.7461', 'ABR.006', '', '076.AC', 'Sesdep D4', 'D4'];

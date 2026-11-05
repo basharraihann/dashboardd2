@@ -21,6 +21,36 @@
             }
         }
 
+        /* Tabel bergaris: garis tipis antar baris dan antar kolom */
+        .ang-scroll table {
+            border-collapse: collapse;
+        }
+
+        .ang-scroll td,
+        .ang-scroll th {
+            border: 1px solid #e2e8f0;
+        }
+
+        .ang-scroll th {
+            border-color: rgb(255 255 255 / .25);
+        }
+
+        .ang-scroll tr> :first-child {
+            border-left: 0;
+        }
+
+        .ang-scroll tr> :last-child {
+            border-right: 0;
+        }
+
+        .ang-scroll thead tr>* {
+            border-top: 0;
+        }
+
+        .ang-scroll tbody tr:last-child>* {
+            border-bottom: 0;
+        }
+
         /* Kartu unit: jumlah kolom menyesuaikan banyaknya unit, kartu selalu mengisi baris */
         .unit-grid {
             display: grid;
@@ -354,7 +384,7 @@
                                 <th class="text-right px-2 py-2 font-semibold">Sisa</th>
                             </tr>
                         </thead>
-                        <tbody id="ang-tb" class="divide-y divide-slate-100"></tbody>
+                        <tbody id="ang-tb"></tbody>
                     </table>
                     <p id="ang-norow" class="hidden py-14 text-center text-sm text-slate-400">Tidak ada baris yang
                         cocok. Ubah kata kunci atau reset filter.</p>
@@ -650,7 +680,7 @@
                     </svg>`;
                 };
                 const chevron = (o) => `<svg class="chev w-3.5 h-3.5 ${o ? 'is-open' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>`;
-                const subLabel = (unit, name) => /\(langsung\)/.test(name) ? 'Langsung ke ' + unit : name.replace(/\s+D\d+$/i, '');
+                const subLabel = (unit, name) => /\(langsung\)/.test(name) ? 'Tata Usaha dan Sakip ' + unit : name.replace(/\s+D\d+$/i, '');
                 const sortedSubs = (a) => [...a.subs.entries()].sort((x, y) => cmpUnit(x[0], y[0]));
 
                 // Baris berlabel (kiri: label, kanan: angka) supaya angka penuh tidak saling menimpa
