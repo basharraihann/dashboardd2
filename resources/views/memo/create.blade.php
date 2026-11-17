@@ -12,9 +12,10 @@
         </div>
     </x-slot>
 
-    <div class="py-8 bg-gradient-to-b from-gray-50/70 to-white min-h-full">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-
+    {{-- Latar halaman --}}
+    <div class="bg-gradient-to-b from-gray-50/70 to-white min-h-full">
+        {{-- Wrapper konten: satu-satunya sumber padding vertikal --}}
+        <div class="py-6 sm:py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-5">
             @include('memo._form')
         </div>
     </div>

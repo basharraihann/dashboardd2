@@ -13,7 +13,7 @@
     </x-slot>
 
     <div class="py-8 bg-gradient-to-b from-gray-50/70 to-white min-h-full">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
             @include('memo._form', ['memo' => $memo])
         </div>

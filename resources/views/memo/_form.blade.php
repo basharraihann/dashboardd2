@@ -1,9 +1,9 @@
 {{--
-    Form memo bersama untuk halaman CREATE dan EDIT.
-    - create : @include('memo._form')                      (tanpa $memo)
-    - edit   : @include('memo._form', ['memo' => $memo])    (dengan $memo)
-    Data dari controller: $pegawaiList, $makOptions, $makOutstanding, $nomorBerikutnya (create).
-    Mau ubah form memo? Cukup ubah file ini.
+Form memo bersama untuk halaman CREATE dan EDIT.
+- create : @include('memo._form') (tanpa $memo)
+- edit : @include('memo._form', ['memo' => $memo]) (dengan $memo)
+Data dari controller: $pegawaiList, $makOptions, $makOutstanding, $nomorBerikutnya (create).
+Mau ubah form memo? Cukup ubah file ini.
 --}}
 
 @if ($errors->any())
@@ -41,6 +41,7 @@
     $nomorBerikutnya = $nomorBerikutnya ?? null;
     $makOptions = $makOptions ?? collect();
     $makOutstanding = $makOutstanding ?? [];
+    $makSisaEfektif = $makSisaEfektif ?? [];
 
     // ----- Daftar pegawai per peran -----
     $ppkList = $pegawaiList->filter(fn($p) => str_contains($p->role_penandatangan ?? '', 'PPK'))->values();
@@ -51,11 +52,16 @@
     // ----- Nilai awal: old() > data memo (edit) > default (create) -----
     $nomorMemo = old('nomor_memo', $isEdit ? $memo->nomor_memo : ($nomorBerikutnya['nomor'] ?? ''));
     $currentJenis = old('jenis_memo', $isEdit ? $memo->jenis_memo : null);
+    // Jenis yang diketik manual tersimpan sebagai kategori "lainnya" + teks di jenis_manual.
+    // Di kotak isian yang ditampilkan adalah teks aslinya.
+    $jenisManual = old('jenis_manual', $isEdit ? $memo->jenis_manual : null);
+    $currentJenisInput = ($currentJenis === 'lainnya' && filled($jenisManual)) ? $jenisManual : $currentJenis;
     $tanggalMemo = old('tanggal_memo', $isEdit ? optional($memo->tanggal_memo)->format('Y-m-d') : now()->toDateString());
     $uraianKegiatan = old('uraian_kegiatan', $isEdit ? $memo->uraian_kegiatan : null);
     $nominalAwal = old('nominal', $isEdit ? (int) round((float) $memo->nominal) : null);
     $currentMak = old('mak', $isEdit ? $memo->mak : null);
     $sel = fn(string $field) => old($field, $isEdit ? $memo->{$field} : null);
+    $currentTipe = old('tipe_pembayaran', $isEdit ? ($memo->tipe_pembayaran ?? 'ls') : 'ls');
 
     // ----- MAK -----
     $makAdaDiDaftar = $makOptions->contains('mak', $currentMak);
@@ -81,449 +87,519 @@
         && $memo->tanggal_memo->toDateString() <= \Carbon\Carbon::parse($perTanggalFa)->toDateString();
 @endphp
 
-<form action="{{ $isEdit ? route('memo.update', $memo->id) : route('memo.store') }}" method="POST" class="space-y-5">
-    @csrf
-    @if ($isEdit)
-        @method('PUT')
-    @endif
+<div class="grid grid-cols-1 min-[1180px]:grid-cols-2 gap-6 items-start">
 
-    {{-- ===== Section: Informasi Memo ===== --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
-        <div class="flex items-center gap-2.5 mb-6">
-            <div class="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-semibold text-gray-800">Informasi Memo</h3>
-                <p class="text-xs text-gray-400">Nomor, jenis, tanggal, dan uraian kegiatan</p>
-            </div>
-        </div>
+    <form action="{{ $isEdit ? route('memo.update', $memo->id) : route('memo.store') }}" method="POST"
+        class="space-y-5 min-w-0">
+        @csrf
+        @if ($isEdit)
+            @method('PUT')
+        @endif
 
-        <div class="space-y-5">
-            <!-- Nomor Memo -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">
-                    Nomor Memo <span class="text-red-400">*</span>
-                </label>
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="text" id="nomor-memo-input" name="nomor_memo" value="{{ $nomorMemo }}" required
-                        placeholder="325/LS.D1.PPK/KU.00/09/2026"
-                        class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-tight focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                    @unless ($isEdit)
-                        <button type="button" id="btn-ambil-memo"
-                            class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 border border-blue-200 text-blue-600 hover:bg-blue-50 active:scale-[0.97] font-semibold px-3.5 py-2.5 rounded-xl text-xs transition-all disabled:opacity-60 disabled:cursor-not-allowed">
-                            <svg xmlns="http://www.w3.org/2000/svg" id="icon-ambil-memo"
-                                class="h-3.5 w-3.5 transition-transform" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            <span id="label-ambil-memo">Ambil Nomor Memo</span>
-                        </button>
-                    @endunless
-                </div>
-                @unless ($isEdit)
-                    <p class="text-xs text-gray-400 mt-1.5">
-                        Format ekor (setelah angka) niru nomor terakhir yang dipakai — boleh diubah manual
-                        kalau beda.
-                    </p>
-                @endunless
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <!-- Jenis Memo -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">Jenis
-                        Memo <span class="text-red-400">*</span></label>
-                    <div class="relative">
-                        <select name="jenis_memo" required
-                            class="w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                            <option value="" disabled {{ $currentJenis ? '' : 'selected' }}>— Pilih —</option>
-                            @foreach (\App\Models\MemoEntry::JENIS as $value => $label)
-                                <option value="{{ $value }}" @selected($currentJenis === $value)>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                </div>
-
-                <!-- Tanggal -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">
-                        Tanggal Memo <span class="text-red-400">*</span>
-                    </label>
-                    <input type="date" name="tanggal_memo" value="{{ $tanggalMemo }}" required
-                        class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                </div>
-            </div>
-
-            <!-- Uraian -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">Nama/Uraian
-                    Kegiatan <span class="text-red-400">*</span></label>
-                <input type="text" name="uraian_kegiatan" value="{{ $uraianKegiatan }}" required
-                    placeholder="Keperluan memo ini"
-                    class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
-            </div>
-        </div>
-    </div>
-
-    {{-- ===== Section: PIC & Penanggung Jawab ===== --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
-        <div class="flex items-center gap-2.5 mb-6">
-            <div class="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 3c0-1.657-3.134-3-7-3s-7 1.343-7 3v2h14v-2z" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-semibold text-gray-800">PIC &amp; Penanggung Jawab</h3>
-                <p class="text-xs text-gray-400">Pegawai yang bertanggung jawab atas memo ini</p>
-            </div>
-        </div>
-
-        <div class="space-y-4">
-            <!-- PIC -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">PIC
-                    <span class="text-red-400">*</span></label>
-                <div class="relative">
-                    <select name="pic_id" required data-placeholder="Cari nama pegawai..."
-                        class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                        <option value="" disabled {{ $sel('pic_id') ? '' : 'selected' }}>— Pilih —</option>
-                        @foreach ($pegawaiList as $p)
-                            <option value="{{ $p->id }}" @selected($sel('pic_id') == $p->id)>
-                                {{ $p->nama_gelar ?? $p->nama }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        {{-- ===== Section: Informasi Memo ===== --}}
+        <div
+            class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow  p-5 sm:p-6">
+            <div class="flex items-center gap-2.5 mb-6">
+                <div class="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                 </div>
-            </div>
-
-            <div class="h-px bg-gray-50"></div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1.5">PPK <span class="text-red-400">*</span></label>
-                    <div class="relative">
-                        <select name="ppk_id" required data-placeholder="Cari PPK..."
-                            class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                            <option value="" disabled {{ $sel('ppk_id') ? '' : 'selected' }}>— Pilih —</option>
-                            @forelse ($ppkList as $p)
-                                <option value="{{ $p->id }}" @selected($sel('ppk_id') == $p->id)>
-                                    {{ $p->nama_gelar ?? $p->nama }}
-                                </option>
-                            @empty
-                                <option value="" disabled>Belum ada pegawai berlabel PPK</option>
-                            @endforelse
-                        </select>
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1.5">Bendahara <span
-                            class="text-red-400">*</span></label>
-                    <div class="relative">
-                        <select name="bendahara_id" required data-placeholder="Cari Bendahara..."
-                            class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                            <option value="" disabled {{ $sel('bendahara_id') ? '' : 'selected' }}>— Pilih —</option>
-                            @forelse ($bendaharaList as $p)
-                                <option value="{{ $p->id }}" @selected($sel('bendahara_id') == $p->id)>
-                                    {{ $p->nama_gelar ?? $p->nama }}
-                                </option>
-                            @empty
-                                <option value="" disabled>Belum ada pegawai berlabel Bendahara</option>
-                            @endforelse
-                        </select>
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1.5">Penanggung Jawab Kegiatan <span
-                            class="text-red-400">*</span></label>
-                    <div class="relative">
-                        <select name="penanggung_jawab_id" required data-placeholder="Cari Penanggung Jawab..."
-                            class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                            <option value="" disabled {{ $sel('penanggung_jawab_id') ? '' : 'selected' }}>— Pilih —</option>
-                            @forelse ($pjList as $p)
-                                <option value="{{ $p->id }}" @selected($sel('penanggung_jawab_id') == $p->id)>
-                                    {{ $p->nama_gelar ?? $p->nama }}
-                                </option>
-                            @empty
-                                <option value="" disabled>Belum ada pegawai berlabel ini</option>
-                            @endforelse
-                        </select>
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1.5">Petugas Verifikasi <span
-                            class="text-red-400">*</span></label>
-                    <div class="relative">
-                        <select name="petugas_verifikasi_id" required data-placeholder="Cari Petugas Verifikasi..."
-                            class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                            <option value="" disabled {{ $sel('petugas_verifikasi_id') ? '' : 'selected' }}>— Pilih —</option>
-                            @forelse ($petugasVerifikasiList as $p)
-                                <option value="{{ $p->id }}" @selected($sel('petugas_verifikasi_id') == $p->id)>
-                                    {{ $p->nama_gelar ?? $p->nama }}
-                                </option>
-                            @empty
-                                <option value="" disabled>Belum ada pegawai berlabel Petugas Verifikasi</option>
-                            @endforelse
-                        </select>
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    <h3 class="text-sm font-semibold text-gray-800">Informasi Memo</h3>
+                    <p class="text-xs text-gray-400">Nomor, jenis, tanggal, dan uraian kegiatan</p>
                 </div>
             </div>
-        </div>
-    </div>
 
-    {{-- ===== Section: Anggaran ===== --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
-        <div class="flex items-center gap-2.5 mb-6">
-            <div class="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none"
-                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-semibold text-gray-800">Anggaran</h3>
-                <p class="text-xs text-gray-400">MAK dan nominal yang diajukan</p>
-            </div>
-        </div>
-
-        <div class="space-y-5">
-            <!-- MAK -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">MAK
-                    <span class="text-red-400">*</span></label>
-
-                @if ($makOptions->isNotEmpty())
-                    {{-- Select asli disembunyikan (TANPA js-searchable). Tetap jadi sumber nilai
-                    supaya skrip sinkron MAK / preview uraian / kartu sisa tetap jalan. --}}
-                    <select id="mak-select" class="hidden" tabindex="-1" aria-hidden="true">
-                        <option value="" data-label="" {{ !$currentMak ? 'selected' : '' }}>— Pilih dari daftar MAK —
-                        </option>
-                        @foreach ($makGroups as $payung => $items)
-                            @foreach ($items as $opt)
-                                <option value="{{ $opt->mak }}"
-                                    data-label="{{ \Illuminate\Support\Str::afterLast($opt->mak, '.') }} — {{ $opt->uraian_belanja }}"
-                                    data-uraian-giat="{{ $opt->uraian_giat }}"
-                                    data-uraian-komponen="{{ $opt->uraian_komponen }}"
-                                    data-uraian-akun-ap="{{ $opt->uraian_akun_ap }}"
-                                    data-uraian-belanja="{{ $opt->uraian_belanja }}"
-                                    data-pagu="{{ (int) $opt->pagu }}"
-                                    data-realisasi="{{ (int) $opt->realisasi }}"
-                                    data-sisa="{{ (int) $opt->sisa }}"
-                                    data-outstanding="{{ (int) ($makOutstanding[$opt->mak] ?? 0) }}"
-                                    data-periode="{{ $opt->periode }}"
-                                    data-per-tanggal="{{ $opt->per_tanggal ? \Carbon\Carbon::parse($opt->per_tanggal)->format('d/m/Y') : '' }}"
-                                    @selected($currentMak === $opt->mak)>
-                                    {{ $opt->mak }}
-                                </option>
-                            @endforeach
-                        @endforeach
-                        <option value="__manual__" data-label="Ketik manual (belum ada di daftar)"
-                            @selected($tampilkanManual && $currentMak)>
-                            Ketik manual (belum ada di daftar)
-                        </option>
-                    </select>
-
-                    {{-- Dropdown MAK buatan sendiri: header ringkas per payung + item yang dijorok --}}
-                    <div id="mak-combo" class="relative mb-2">
-                        <input type="text" id="mak-search" autocomplete="off" placeholder="Cari MAK..."
-                            value="{{ $currentLabel }}"
-                            class="w-full border border-gray-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition bg-white placeholder:text-gray-400">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-
-                        <div id="mak-panel"
-                            class="hidden absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-96 overflow-y-auto">
-                            @foreach ($makGroups as $payung => $items)
-                                @php $first = $items->first(); @endphp
-                                <div class="mak-group">
-                                    {{-- Header ringkas per payung --}}
-                                    <div class="sticky top-0 z-10 px-3.5 py-1.5 bg-gray-50 border-y border-gray-100">
-                                        <div class="flex items-center gap-2">
-                                            <span
-                                                class="font-mono text-[11px] font-semibold text-indigo-700 bg-white border border-gray-200 rounded px-1.5 py-0.5">{{ $payung }}</span>
-                                            <span class="text-[11px] text-gray-400">{{ $items->count() }} akun
-                                                belanja</span>
-                                        </div>
-                                        <div class="text-xs font-semibold text-gray-700 mt-1 truncate"
-                                            title="{{ $first->uraian_giat }}">{{ $first->uraian_giat }}</div>
-                                        <div class="text-[11px] text-gray-500 truncate"
-                                            title="{{ $first->uraian_komponen }}">
-                                            {{ $first->uraian_komponen }}
-                                        </div>
-                                    </div>
-
-                                    {{-- Item dijorok + garis vertikal tipis supaya kelihatan anak dari header --}}
-                                    <div class="ml-4 my-1 border-l border-gray-200">
-                                        @foreach ($items as $opt)
-                                            @php $efektif = (int) $opt->sisa - (int) ($makOutstanding[$opt->mak] ?? 0); @endphp
-                                            <button type="button" data-mak="{{ $opt->mak }}"
-                                                data-search="{{ mb_strtolower($opt->mak . ' ' . $opt->uraian_belanja . ' ' . $opt->uraian_giat . ' ' . $opt->uraian_komponen) }}"
-                                                class="mak-item w-full text-left flex items-baseline gap-3 -ml-px pl-4 pr-3.5 py-1.5 text-xs text-gray-700 border-l-2 border-transparent hover:bg-blue-50 transition">
-                                                <span
-                                                    class="font-mono text-[11px] text-gray-500 w-14 flex-shrink-0">{{ \Illuminate\Support\Str::afterLast($opt->mak, '.') }}</span>
-                                                <span class="flex-1">{{ $opt->uraian_belanja }}</span>
-                                                <span
-                                                    class="tabular-nums text-[11px] flex-shrink-0 {{ $efektif <= 0 ? 'text-red-600 font-semibold' : 'text-gray-500' }}">
-                                                    Sisa Rp {{ number_format($efektif, 0, ',', '.') }}
-                                                </span>
-                                                <svg xmlns="http://www.w3.org/2000/svg"
-                                                    class="mak-check hidden h-4 w-4 text-blue-600 flex-shrink-0 self-center"
-                                                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                                    stroke-width="2.5">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        d="M5 13l4 4L19 7" />
-                                                </svg>
-                                            </button>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endforeach
-
-                            <p id="mak-empty" class="hidden px-3.5 py-3 text-xs text-gray-400">MAK tidak
-                                ditemukan.</p>
-
-                            <button type="button" data-mak="__manual__" data-search="ketik manual"
-                                class="mak-item w-full text-left px-3.5 py-2 text-xs text-blue-600 font-semibold border-t border-gray-100 hover:bg-blue-50 transition">
-                                + Ketik manual (belum ada di daftar)
+            <div class="space-y-5">
+                <!-- Nomor Memo -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">
+                        Nomor Memo <span class="text-red-400">*</span>
+                    </label>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="text" id="nomor-memo-input" name="nomor_memo" value="{{ $nomorMemo }}" required
+                            placeholder="325/LS.D1.PPK/KU.00/09/2026"
+                            class="flex-1 min-w-0 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono tracking-tight focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                        @unless ($isEdit)
+                            <button type="button" id="btn-ambil-memo"
+                                class="flex-shrink-0 inline-flex items-center justify-center gap-1.5 border border-blue-200 text-blue-600 hover:bg-blue-50 active:scale-[0.97] font-semibold px-3.5 py-2.5 rounded-xl text-xs transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                                <svg xmlns="http://www.w3.org/2000/svg" id="icon-ambil-memo"
+                                    class="h-3.5 w-3.5 transition-transform" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span id="label-ambil-memo">Ambil Nomor Memo</span>
                             </button>
+                        @endunless
+                    </div>
+                    @unless ($isEdit)
+                        <p class="text-xs text-gray-400 mt-1.5">
+                            Format ekor (setelah angka) niru nomor terakhir yang dipakai — boleh diubah manual
+                            kalau beda.
+                        </p>
+                    @endunless
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4"> <!-- Tipe Pembayaran -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">
+                            Tipe Pembayaran <span class="text-red-400">*</span>
+                        </label>
+                        <div class="relative">
+                            {{-- Dipilih dari daftar ATAU diketik manual (lihat data-allow-custom di searchable.js).
+                            Nilai ketikan dikirim lewat option data-custom; maks. 20 karakter (kolom DB). --}}
+                            <select name="tipe_pembayaran" id="tipe-pembayaran" required data-allow-custom="1"
+                                data-maxlength="20" data-placeholder="Pilih atau ketik sendiri..."
+                                class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                @foreach (\App\Models\MemoEntry::TIPE_PEMBAYARAN as $value => $label)
+                                    <option value="{{ $value }}" @selected($currentTipe === $value)>
+                                        {{ \Illuminate\Support\Str::of($label)->afterLast('(')->before(')') }} —
+                                        {{ \Illuminate\Support\Str::of($label)->after('Permintaan ')->before(' (') }}
+                                    </option>
+                                @endforeach
+                                @if ($currentTipe && !array_key_exists($currentTipe, \App\Models\MemoEntry::TIPE_PEMBAYARAN))
+                                    <option value="{{ $currentTipe }}" data-custom selected>{{ $currentTipe }}</option>
+                                @endif
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
                     </div>
-                @else
-                    <p class="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2">
-                        Belum ada master MAK — isi manual di bawah.
-                    </p>
-                @endif
 
-                <input type="text" id="mak-input" name="mak" value="{{ $currentMak }}" required
-                    placeholder="7458.ABR.006.075.EE.524119"
-                    class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300 {{ $tampilkanManual ? '' : 'hidden' }}">
-                <p class="text-xs text-gray-400 mt-1.5">
-                    Format: KodeGiat.KodeKomponen.KodeAkun.KodeBelanja dipisah titik jadi 6 bagian. Kode di
-                    bawah ini otomatis terisi dari MAK.
+                    <!-- Jenis Memo -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">Jenis
+                            Memo <span class="text-red-400">*</span></label>
+                        <div class="relative">
+                            <select name="jenis_memo" id="jenis-memo" required data-allow-custom="1"
+                                data-maxlength="100" data-placeholder="Pilih atau ketik sendiri..."
+                                class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                <option value="" disabled {{ $currentJenisInput ? '' : 'selected' }}>— Pilih —</option>
+                                @foreach (\App\Models\MemoEntry::JENIS as $value => $label)
+                                    <option value="{{ $value }}" @selected($currentJenisInput === $value)>{{ $label }}
+                                    </option>
+                                @endforeach
+                                @if ($currentJenisInput && !array_key_exists($currentJenisInput, \App\Models\MemoEntry::JENIS))
+                                    <option value="{{ $currentJenisInput }}" data-custom selected>{{ $currentJenisInput }}
+                                    </option>
+                                @endif
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Tanggal -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">
+                            Tanggal Memo <span class="text-red-400">*</span>
+                        </label>
+                        <input type="date" name="tanggal_memo" value="{{ $tanggalMemo }}" required
+                            class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                    </div>
+                </div>
+
+                <!-- Preview "Hal" di PDF -->
+                <p class="text-xs text-gray-400 -mt-2">
+                    Hal di PDF: <span id="preview-hal" class="font-medium text-gray-600"></span>
                 </p>
 
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                    <div class="bg-gray-50/60 rounded-lg p-2.5">
-                        <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Giat</label>
-                        <input type="text" id="preview-kode-giat" readonly tabindex="-1"
-                            class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
-                        <p id="preview-uraian-giat" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
-                    </div>
-                    <div class="bg-gray-50/60 rounded-lg p-2.5">
-                        <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Komponen</label>
-                        <input type="text" id="preview-kode-komponen" readonly tabindex="-1"
-                            class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
-                        <p id="preview-uraian-komponen" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
-                    </div>
-                    <div class="bg-gray-50/60 rounded-lg p-2.5">
-                        <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Akun (AP)</label>
-                        <input type="text" id="preview-kode-akun-ap" readonly tabindex="-1"
-                            class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
-                        <p id="preview-uraian-akun-ap" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
-                    </div>
-                    <div class="bg-gray-50/60 rounded-lg p-2.5">
-                        <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Belanja</label>
-                        <input type="text" id="preview-kode-belanja" readonly tabindex="-1"
-                            class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
-                        <p id="preview-uraian-belanja" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
-                    </div>
+                <!-- Uraian -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">Nama/Uraian
+                        Kegiatan <span class="text-red-400">*</span></label>
+                    <input type="text" name="uraian_kegiatan" value="{{ $uraianKegiatan }}" required
+                        placeholder="Keperluan memo ini"
+                        class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
                 </div>
-
-                {{-- Khusus edit: nominal memo ini sendiri sudah tercatat di realisasi FA --}}
-                @if ($memoSudahDiFa)
-                    <span id="sisa-mak-koreksi" class="hidden" data-mak="{{ $memo->mak }}"
-                        data-nominal="{{ (int) round((float) $memo->nominal) }}"></span>
-                @endif
-
-                @include('memo._sisa-mak')
-
-                @error('mak')
-                    <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
-                @enderror
-            </div>
-
-            <!-- Nominal -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">Nominal
-                    <span class="text-red-400">*</span></label>
-                <div class="relative">
-                    <span
-                        class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">Rp</span>
-                    <input type="text" inputmode="numeric" name="nominal" value="{{ $nominalAwal }}" required
-                        placeholder="0" id="nominal-input"
-                        class="w-full border border-gray-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
-                </div>
-                @error('nominal')
-                    <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
-                @enderror
             </div>
         </div>
-    </div>
 
-    {{-- Actions --}}
-    <div
-        class="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 sm:px-7 py-4">
-        <a href="{{ route('memo.index') }}"
-            class="w-full sm:w-auto text-center text-sm text-gray-400 hover:text-gray-600 transition">
-            &larr; Batal
-        </a>
-        <button type="submit"
-            class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md shadow-blue-600/20 transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            {{ $isEdit ? 'Simpan Perubahan' : 'Simpan Nomor Memo' }}
-        </button>
-    </div>
-</form>
+        {{-- ===== Section: PIC & Penanggung Jawab ===== --}}
+        <div
+            class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow  p-5 sm:p-6">
+            <div class="flex items-center gap-2.5 mb-6">
+                <div class="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 3c0-1.657-3.134-3-7-3s-7 1.343-7 3v2h14v-2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">PIC &amp; Penanggung Jawab</h3>
+                    <p class="text-xs text-gray-400">Pegawai yang bertanggung jawab atas memo ini</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <!-- PIC -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">PIC
+                        <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <select name="pic_id" required data-placeholder="Cari nama pegawai..."
+                            class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                            <option value="" disabled {{ $sel('pic_id') ? '' : 'selected' }}>— Pilih —</option>
+                            @foreach ($pegawaiList as $p)
+                                <option value="{{ $p->id }}" @selected($sel('pic_id') == $p->id)>
+                                    {{ $p->nama_gelar ?? $p->nama }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="h-px bg-gray-50"></div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1.5">PPK <span
+                                class="text-red-400">*</span></label>
+                        <div class="relative">
+                            <select name="ppk_id" required data-placeholder="Cari PPK..."
+                                class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                <option value="" disabled {{ $sel('ppk_id') ? '' : 'selected' }}>— Pilih —</option>
+                                @forelse ($ppkList as $p)
+                                    <option value="{{ $p->id }}" data-nama="{{ $p->nama }}" data-nip="{{ $p->nip }}"
+                                        @selected($sel('ppk_id') == $p->id)>
+                                        {{ $p->nama_gelar ?? $p->nama }}
+                                    </option>
+                                @empty
+                                    <option value="" disabled>Belum ada pegawai berlabel PPK</option>
+                                @endforelse
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1.5">Bendahara <span
+                                class="text-red-400">*</span></label>
+                        <div class="relative">
+                            <select name="bendahara_id" required data-placeholder="Cari Bendahara..."
+                                class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                <option value="" disabled {{ $sel('bendahara_id') ? '' : 'selected' }}>— Pilih —
+                                </option>
+                                @forelse ($bendaharaList as $p)
+                                    <option value="{{ $p->id }}" data-nama="{{ $p->nama }}" data-nip="{{ $p->nip }}"
+                                        @selected($sel('bendahara_id') == $p->id)>
+                                        {{ $p->nama_gelar ?? $p->nama }}
+                                    </option>
+                                @empty
+                                    <option value="" disabled>Belum ada pegawai berlabel Bendahara</option>
+                                @endforelse
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1.5">Penanggung Jawab Kegiatan <span
+                                class="text-red-400">*</span></label>
+                        <div class="relative">
+                            <select name="penanggung_jawab_id" required data-placeholder="Cari Penanggung Jawab..."
+                                class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                <option value="" disabled {{ $sel('penanggung_jawab_id') ? '' : 'selected' }}>— Pilih —
+                                </option>
+                                @forelse ($pjList as $p)
+                                    <option value="{{ $p->id }}" data-nama="{{ $p->nama }}" data-nip="{{ $p->nip }}"
+                                        @selected($sel('penanggung_jawab_id') == $p->id)>
+                                        {{ $p->nama_gelar ?? $p->nama }}
+                                    </option>
+                                @empty
+                                    <option value="" disabled>Belum ada pegawai berlabel ini</option>
+                                @endforelse
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1.5">Petugas Verifikasi <span
+                                class="text-red-400">*</span></label>
+                        <div class="relative">
+                            <select name="petugas_verifikasi_id" required data-placeholder="Cari Petugas Verifikasi..."
+                                class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
+                                <option value="" disabled {{ $sel('petugas_verifikasi_id') ? '' : 'selected' }}>— Pilih
+                                    —
+                                </option>
+                                @forelse ($petugasVerifikasiList as $p)
+                                    <option value="{{ $p->id }}" data-nama="{{ $p->nama }}" data-nip="{{ $p->nip }}"
+                                        @selected($sel('petugas_verifikasi_id') == $p->id)>
+                                        {{ $p->nama_gelar ?? $p->nama }}
+                                    </option>
+                                @empty
+                                    <option value="" disabled>Belum ada pegawai berlabel Petugas Verifikasi</option>
+                                @endforelse
+                            </select>
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===== Section: Anggaran ===== --}}
+        <div
+            class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow  p-5 sm:p-6">
+            <div class="flex items-center gap-2.5 mb-6">
+                <div class="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Anggaran</h3>
+                    <p class="text-xs text-gray-400">MAK dan nominal yang diajukan</p>
+                </div>
+            </div>
+
+            <div class="space-y-5">
+                <!-- MAK -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">MAK
+                        <span class="text-red-400">*</span></label>
+
+                    @if ($makOptions->isNotEmpty())
+                        {{-- Select asli disembunyikan (TANPA js-searchable). Tetap jadi sumber nilai
+                        supaya skrip sinkron MAK / preview uraian / kartu sisa tetap jalan. --}}
+                        <select id="mak-select" class="hidden" tabindex="-1" aria-hidden="true">
+                            <option value="" data-label="" {{ !$currentMak ? 'selected' : '' }}>— Pilih dari daftar MAK —
+                            </option>
+                            @foreach ($makGroups as $payung => $items)
+                                @foreach ($items as $opt)
+                                    <option value="{{ $opt->mak }}"
+                                        data-label="{{ \Illuminate\Support\Str::afterLast($opt->mak, '.') }} — {{ $opt->uraian_belanja }}"
+                                        data-uraian-giat="{{ $opt->uraian_giat }}"
+                                        data-uraian-komponen="{{ $opt->uraian_komponen }}"
+                                        data-uraian-akun-ap="{{ $opt->uraian_akun_ap }}"
+                                        data-uraian-belanja="{{ $opt->uraian_belanja }}" data-pagu="{{ (int) $opt->pagu }}"
+                                        data-realisasi="{{ (int) $opt->realisasi }}" data-sisa="{{ (int) $opt->sisa }}"
+                                        data-outstanding-sendiri="{{ (int) ($makOutstanding[$opt->mak]['sendiri'] ?? 0) }}"
+                                        data-outstanding-lain="{{ (int) ($makOutstanding[$opt->mak]['lain'] ?? 0) }}"
+                                        data-periode="{{ $opt->periode }}"
+                                        data-per-tanggal="{{ $opt->per_tanggal ? \Carbon\Carbon::parse($opt->per_tanggal)->format('d/m/Y') : '' }}"
+                                        @selected($currentMak === $opt->mak)>
+                                        {{ $opt->mak }}
+                                    </option>
+                                @endforeach
+                            @endforeach
+                            <option value="__manual__" data-label="Ketik manual (belum ada di daftar)"
+                                @selected($tampilkanManual && $currentMak)>
+                                Ketik manual (belum ada di daftar)
+                            </option>
+                        </select>
+
+                        {{-- Dropdown MAK buatan sendiri: header ringkas per payung + item yang dijorok --}}
+                        <div id="mak-combo" class="relative mb-2">
+                            <input type="text" id="mak-search" autocomplete="off" placeholder="Cari MAK..."
+                                value="{{ $currentLabel }}"
+                                class="w-full border border-gray-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition bg-white placeholder:text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+
+                            <div id="mak-panel"
+                                class="hidden absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-96 overflow-y-auto">
+                                @foreach ($makGroups as $payung => $items)
+                                    @php $first = $items->first(); @endphp
+                                    <div class="mak-group">
+                                        {{-- Header ringkas per payung --}}
+                                        <div class="sticky top-0 z-10 px-3.5 py-1.5 bg-gray-50 border-y border-gray-100">
+                                            <div class="flex items-center gap-2">
+                                                <span
+                                                    class="font-mono text-[11px] font-semibold text-indigo-700 bg-white border border-gray-200 rounded px-1.5 py-0.5">{{ $payung }}</span>
+                                                <span class="text-[11px] text-gray-400">{{ $items->count() }} akun
+                                                    belanja</span>
+                                            </div>
+                                            <div class="text-xs font-semibold text-gray-700 mt-1 truncate"
+                                                title="{{ $first->uraian_giat }}">{{ $first->uraian_giat }}</div>
+                                            <div class="text-[11px] text-gray-500 truncate"
+                                                title="{{ $first->uraian_komponen }}">
+                                                {{ $first->uraian_komponen }}
+                                            </div>
+                                        </div>
+
+                                        {{-- Item dijorok + garis vertikal tipis supaya kelihatan anak dari header --}}
+                                        <div class="ml-4 my-1 border-l border-gray-200">
+                                            @foreach ($items as $opt)
+                                                @php
+                                                    $efektif = $makSisaEfektif[$opt->mak] ?? (int) $opt->sisa;                                                    // Edit: nominal memo ini sudah masuk realisasi FA, kembalikan ke sisa
+                                                    if ($memoSudahDiFa && $opt->mak === $memo->mak) {
+                                                        $efektif += (int) round((float) $memo->nominal);
+                                                    }
+                                                    $tidakCukup = $efektif <= 0;
+                                                @endphp
+                                                <button type="button" data-mak="{{ $opt->mak }}"
+                                                    data-search="{{ mb_strtolower($opt->mak . ' ' . $opt->uraian_belanja . ' ' . $opt->uraian_giat . ' ' . $opt->uraian_komponen) }}"
+                                                    class="mak-item w-full text-left flex items-center gap-3 -ml-px pl-4 pr-3.5 py-2 border-l-2 border-transparent hover:bg-blue-50 transition">
+                                                    <span class="flex-1 min-w-0">
+                                                        <span
+                                                            class="block font-mono text-[11px] text-gray-400">{{ \Illuminate\Support\Str::beforeLast($opt->mak, '.') }}.<span
+                                                                class="font-bold text-gray-800">{{ \Illuminate\Support\Str::afterLast($opt->mak, '.') }}</span></span>
+                                                        <span class="block text-sm text-gray-800">{{ $opt->uraian_belanja }}</span>
+                                                    </span>
+                                                    <span class="text-right flex-shrink-0">
+                                                        <span class="block text-[10px] uppercase tracking-wide text-gray-400">Sisa
+                                                            tersedia</span>
+                                                        <span
+                                                            class="block text-sm font-semibold tabular-nums {{ $tidakCukup ? 'text-red-600' : 'text-emerald-600' }}">
+                                                            Rp {{ number_format($efektif, 0, ',', '.') }}
+                                                        </span>
+                                                    </span>
+                                                    @if ($tidakCukup)
+                                                        <span
+                                                            class="flex-shrink-0 rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">Tidak
+                                                            cukup</span>
+                                                    @endif
+                                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                                        class="mak-check hidden h-4 w-4 text-blue-600 flex-shrink-0" fill="none"
+                                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+
+                                <p id="mak-empty" class="hidden px-3.5 py-3 text-xs text-gray-400">MAK tidak
+                                    ditemukan.</p>
+
+                                <button type="button" data-mak="__manual__" data-search="ketik manual"
+                                    class="mak-item w-full text-left px-3.5 py-2 text-xs text-blue-600 font-semibold border-t border-gray-100 hover:bg-blue-50 transition">
+                                    + Ketik manual (belum ada di daftar)
+                                </button>
+                            </div>
+                        </div>
+                    @else
+                        <p class="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2">
+                            Belum ada master MAK — isi manual di bawah.
+                        </p>
+                    @endif
+
+                    <input type="text" id="mak-input" name="mak" value="{{ $currentMak }}" required
+                        placeholder="7458.ABR.006.075.EE.524119"
+                        class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300 {{ $tampilkanManual ? '' : 'hidden' }}">
+                    <p class="text-xs text-gray-400 mt-1.5">
+                        Format: KodeGiat.KodeKomponen.KodeAkun.KodeBelanja dipisah titik jadi 6 bagian. Kode di
+                        bawah ini otomatis terisi dari MAK.
+                    </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                        <div class="bg-gray-50/60 rounded-lg p-2.5">
+                            <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Giat</label>
+                            <input type="text" id="preview-kode-giat" readonly tabindex="-1"
+                                class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
+                            <p id="preview-uraian-giat" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
+                        </div>
+                        <div class="bg-gray-50/60 rounded-lg p-2.5">
+                            <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Komponen</label>
+                            <input type="text" id="preview-kode-komponen" readonly tabindex="-1"
+                                class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
+                            <p id="preview-uraian-komponen" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
+                        </div>
+                        <div class="bg-gray-50/60 rounded-lg p-2.5">
+                            <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Akun (AP)</label>
+                            <input type="text" id="preview-kode-akun-ap" readonly tabindex="-1"
+                                class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
+                            <p id="preview-uraian-akun-ap" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
+                        </div>
+                        <div class="bg-gray-50/60 rounded-lg p-2.5">
+                            <label class="block text-[11px] font-medium text-gray-400 mb-1">Kode Belanja</label>
+                            <input type="text" id="preview-kode-belanja" readonly tabindex="-1"
+                                class="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-white text-gray-600">
+                            <p id="preview-uraian-belanja" class="text-[11px] text-gray-400 mt-1 leading-snug"></p>
+                        </div>
+                    </div>
+
+                    {{-- Khusus edit: nominal memo ini sendiri sudah tercatat di realisasi FA --}}
+                    @if ($memoSudahDiFa)
+                        <span id="sisa-mak-koreksi" class="hidden" data-mak="{{ $memo->mak }}"
+                            data-nominal="{{ (int) round((float) $memo->nominal) }}"></span>
+                    @endif
+
+                    @include('memo._sisa-mak')
+
+                    @error('mak')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Nominal -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase">Nominal
+                        <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <span
+                            class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">Rp</span>
+                        <input type="text" inputmode="numeric" name="nominal" value="{{ $nominalAwal }}" required
+                            placeholder="0" id="nominal-input"
+                            class="w-full border border-gray-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
+                    </div>
+                    @error('nominal')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
+            </div>
+        </div>
+
+        {{-- Actions --}}
+        <div
+            class="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 sm:px-7 py-4">
+            <a href="{{ route('memo.index') }}"
+                class="w-full sm:w-auto text-center text-sm text-gray-400 hover:text-gray-600 transition">
+                &larr; Batal
+            </a>
+            <button type="submit"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md shadow-blue-600/20 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                {{ $isEdit ? 'Simpan Perubahan' : 'Simpan Nomor Memo' }}
+            </button>
+        </div>
+    </form>
+
+    @include('memo._preview')
+</div>
 
 <style>
     @keyframes fadeIn {
@@ -580,6 +656,7 @@
                     const res = await fetch('{{ route('memo.nomor-berikutnya') }}');
                     const data = await res.json();
                     input.value = data.nomor;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));   // <-- tambahan
                     input.classList.add('ring-2', 'ring-green-200', 'border-green-300');
                     setTimeout(() => input.classList.remove('ring-2', 'ring-green-200', 'border-green-300'), 900);
                 } catch (e) {
@@ -788,146 +865,29 @@
         }
     })();
 
-    // ===== Searchable select: ubah <select> jadi input yang bisa diketik untuk filter opsi =====
+    // Select PIC / PPK / Bendahara / dst. (class js-searchable) di-enhance oleh
+    // resources/js/searchable.js (global). JANGAN dipasang lagi di sini, kalau tidak
+    // dobel dan select asli yang `required` taersembunyi -> form tidak bisa submit.
+
+    // Preview teks "Hal" di PDF dari tipe pembayaran + jenis memo
     (function () {
-        function enhance(select) {
-            if (!select || select.dataset.enhanced) return;
-            select.dataset.enhanced = '1';
+        const tipeEl = document.getElementById('tipe-pembayaran');
+        const jenisEl = document.getElementById('jenis-memo');
+        const out = document.getElementById('preview-hal');
+        if (!tipeEl || !jenisEl || !out) return;
 
-            const container = select.parentElement; // div.relative yang juga berisi ikon panah
-            const options = Array.from(select.options).filter(function (o) { return o.value !== ''; });
+        const TIPE = @json(\App\Models\MemoEntry::TIPE_PEMBAYARAN);
+        const JENIS = @json(\App\Models\MemoEntry::JENIS_HAL);
 
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.autocomplete = 'off';
-            input.placeholder = select.dataset.placeholder || 'Cari & pilih...';
-            input.className = select.className;
-            if (select.hasAttribute('required')) input.setAttribute('required', 'required');
-
-            const list = document.createElement('ul');
-            list.className = 'absolute z-20 top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm hidden';
-
-            let highlighted = -1;
-
-            function itemEls() {
-                return Array.from(list.children).filter(function (li) { return li.dataset.value !== undefined; });
-            }
-
-            function renderList(filterText) {
-                const f = (filterText || '').toLowerCase();
-                list.innerHTML = '';
-                highlighted = -1;
-                const filtered = options.filter(function (o) {
-                    return o.textContent.trim().toLowerCase().includes(f);
-                });
-                if (filtered.length === 0) {
-                    const li = document.createElement('li');
-                    li.className = 'px-3.5 py-2 text-gray-400 text-xs';
-                    li.textContent = 'Tidak ditemukan';
-                    list.appendChild(li);
-                    return;
-                }
-                filtered.forEach(function (o) {
-                    const li = document.createElement('li');
-                    li.textContent = o.textContent.trim();
-                    li.dataset.value = o.value;
-                    li.className = 'px-3.5 py-2 cursor-pointer hover:bg-blue-50 text-gray-700' +
-                        (o.value === select.value ? ' bg-blue-50 font-medium text-blue-700' : '');
-                    li.addEventListener('mousedown', function (e) {
-                        e.preventDefault(); // biar blur gak duluan nutup list sebelum klik kepilih
-                        pick(o);
-                    });
-                    list.appendChild(li);
-                });
-            }
-
-            function pick(o) {
-                select.value = o.value;
-                input.value = o.textContent.trim();
-                select.dispatchEvent(new Event('change', { bubbles: true }));
-                closeList();
-            }
-
-            function openList() {
-                renderList(input.value);
-                list.classList.remove('hidden');
-            }
-
-            function closeList() {
-                list.classList.add('hidden');
-            }
-
-            function updateHighlight() {
-                const items = itemEls();
-                items.forEach(function (li, idx) {
-                    li.classList.toggle('bg-blue-100', idx === highlighted);
-                });
-                if (items[highlighted]) items[highlighted].scrollIntoView({ block: 'nearest' });
-            }
-
-            input.addEventListener('focus', function () {
-                input.select();
-                openList();
-            });
-
-            input.addEventListener('input', function () {
-                openList();
-            });
-
-            input.addEventListener('blur', function () {
-                setTimeout(function () {
-                    const current = select.selectedOptions[0];
-                    input.value = (current && current.value !== '') ? current.textContent.trim() : '';
-                    closeList();
-                }, 120);
-            });
-
-            input.addEventListener('keydown', function (e) {
-                if (list.classList.contains('hidden') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-                    e.preventDefault();
-                    openList();
-                    return;
-                }
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    const items = itemEls();
-                    highlighted = Math.min(highlighted + 1, items.length - 1);
-                    updateHighlight();
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    highlighted = Math.max(highlighted - 1, 0);
-                    updateHighlight();
-                } else if (e.key === 'Enter') {
-                    const items = itemEls();
-                    if (!list.classList.contains('hidden') && highlighted >= 0 && items[highlighted]) {
-                        e.preventDefault();
-                        const val = items[highlighted].dataset.value;
-                        const opt = options.find(function (o) { return o.value === val; });
-                        if (opt) pick(opt);
-                    }
-                } else if (e.key === 'Escape') {
-                    closeList();
-                }
-            });
-
-            document.addEventListener('click', function (e) {
-                if (!container.contains(e.target)) closeList();
-            });
-
-            const initial = select.selectedOptions[0];
-            if (initial && initial.value !== '') input.value = initial.textContent.trim();
-
-            // Bungkus input+list dalam wrapper "relative" sendiri, biar posisi dropdown
-            // selalu ngikut pas di bawah kotaknya, gak gantung ke ancestor yang belum tentu relative.
-            const wrapper = document.createElement('div');
-            wrapper.className = 'relative';
-            container.insertBefore(wrapper, select);
-            wrapper.appendChild(input);
-            wrapper.appendChild(list);
-            select.classList.add('hidden');
-            wrapper.appendChild(select);
+        function render() {
+            // Nilai ketikan manual (tidak ada di daftar) dipakai apa adanya, sama seperti di PDF.
+            const tipe = TIPE[tipeEl.value] || tipeEl.value || '';
+            const jenis = JENIS[jenisEl.value] || jenisEl.value || '';
+            out.textContent = (tipe + ' ' + jenis).trim();
         }
 
-        document.querySelectorAll('select.js-searchable').forEach(enhance);
+        tipeEl.addEventListener('change', render);
+        jenisEl.addEventListener('change', render);
+        render();
     })();
 </script>
