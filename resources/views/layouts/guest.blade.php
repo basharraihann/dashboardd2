@@ -15,7 +15,7 @@
     <meta property="og:site_name" content="{{ config('app.name') }}">
     <meta property="og:title"
         content="{{ $attributes->get('title') ? $attributes->get('title') . ' | ' : '' }}{{ config('app.name') }}">
-    <meta property="og:description" content="Sistem SPJ MKDI - Kementerian Koordinator Bidang Pangan">
+    <meta property="og:description" content="Deputi 2 - Kementerian Koordinator Bidang Pangan">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta property="og:image" content="{{ asset('images/og-image.png') }}">
     <meta property="og:image:type" content="image/png">
