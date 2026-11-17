@@ -8,7 +8,7 @@
     <title>{{ $attributes->get('title') ? $attributes->get('title') . ' | ' : '' }}{{ config('app.name', 'Laravel') }}
     </title>
 
-    <meta name="description" content="Sistem SPJ MKDI - Kementerian Koordinator Bidang Pangan">
+    <meta name="description" content="Deputi 2 - Kementerian Koordinator Bidang Pangan">
 
     <!-- Link preview (WhatsApp, Telegram, Facebook, dll) -->
     <meta property="og:type" content="website">
