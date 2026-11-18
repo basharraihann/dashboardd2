@@ -43,6 +43,11 @@
             $bendaharaList = $pegawaiList;
         }
 
+        $penanggungJawabList = $pegawaiList->filter(fn($p) => str_contains($p->role_penandatangan ?? '', 'Penanggung Jawab'))->values();
+        if ($penanggungJawabList->isEmpty()) {
+            $penanggungJawabList = $pegawaiList;
+        }
+
         // Item awal: dari old() kalau validasi gagal, dari database kalau edit, atau satu baris kosong
         $rows = old('items');
         if ($rows === null) {
@@ -218,9 +223,9 @@
                                 <div class="relative">
                                     <select name="penanggung_jawab_id" required data-placeholder="Cari pegawai..."
                                         class="js-searchable {{ $selectClass }}">
-                                        <option value="" disabled {{ $awal('penanggung_jawab_id') ? '' : 'selected' }}>
-                                            — Pilih —</option>
-                                        @foreach ($pegawaiList as $p)
+                                        <option value="" disabled {{ $awal('penanggung_jawab_id') ? '' : 'selected' }}>—
+                                            Pilih —</option>
+                                        @foreach ($penanggungJawabList as $p)
                                             <option value="{{ $p->id }}" data-nip="{{ $p->nip }}"
                                                 @selected($awal('penanggung_jawab_id') == $p->id)>
                                                 {{ $p->nama_gelar ?? $p->nama }}
