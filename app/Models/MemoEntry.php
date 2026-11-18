@@ -164,15 +164,4 @@ class MemoEntry extends Model
         return ($this->status_anggaran ?? 'outstanding') === 'outstanding'
             && \App\Services\MemoTahapService::bisaDiedit("entry-{$this->id}");
     }
-
-    public function memo()
-    {
-        return $this->belongsTo(MemoEntry::class, 'memo_entry_id')->withoutGlobalScope('unit');
-    }
-
-    public function terkunci(): bool
-    {
-        return $this->memo_entry_id !== null
-            && !($this->memo?->bolehDiubah() ?? false);
-    }
 }

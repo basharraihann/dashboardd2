@@ -5,6 +5,9 @@ Opsional (dari memo): $memo, $prefill
 
 Catatan: dropdown searchable ditangani resources/js/searchable.js,
 cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut data-lokasi-*).
+
+Preview: @include('nominatif._preview-honor') dipasang di kolom kanan, di dalam wrapper
+.nom-layout yang memegang x-data="nominatifForm(...)" supaya preview bisa membaca `rows`.
 --}}
 @php
     $nominatif = $nominatif ?? null;
@@ -93,7 +96,8 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
 @endphp
 
 <div class="py-8 bg-gradient-to-b from-gray-50/70 to-white min-h-full">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    {{-- Dilebarkan dari max-w-7xl supaya form + preview muat berdampingan --}}
+    <div class="mx-auto px-4 sm:px-6 lg:px-8" style="max-width: 1700px;">
 
         @if ($errors->any())
             <div
@@ -133,357 +137,397 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
             </div>
         @endif
 
-        <form action="{{ $action }}" method="POST" class="space-y-5" x-data="nominatifForm(@js($formConfig))">
-            @csrf
-            @if ($method !== 'POST')
-                @method($method)
-            @endif
+        {{-- Wrapper dua kolom: x-data dipegang di sini agar form dan preview berbagi `rows` --}}
+        <div class="nom-layout" x-data="nominatifForm(@js($formConfig))">
+            <div class="min-w-0">
 
-            {{-- Hanya saat buat. Saat edit, memo tidak boleh dipindah. --}}
-            @if ($memo && !$isEdit)
-                <input type="hidden" name="memo_entry_id" value="{{ $memo->id }}">
-            @endif
+                <form action="{{ $action }}" method="POST" class="space-y-5">
+                    @csrf
+                    @if ($method !== 'POST')
+                        @method($method)
+                    @endif
 
-            {{-- ===== Section: Informasi Kegiatan ===== --}}
-            <div
-                class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
-                <div class="flex items-center gap-2.5 mb-6">
-                    <div class="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800">Informasi Kegiatan</h3>
-                        <p class="text-xs text-gray-400">Uraian kegiatan, tanggal, dan lokasi yang tampil di dokumen</p>
-                    </div>
-                </div>
+                    {{-- Hanya saat buat. Saat edit, memo tidak boleh dipindah. --}}
+                    @if ($memo && !$isEdit)
+                        <input type="hidden" name="memo_entry_id" value="{{ $memo->id }}">
+                    @endif
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div class="sm:col-span-2">
-                        <label class="{{ $labelClass }}">Nama Kegiatan <span class="text-red-400">*</span></label>
-                        <input type="text" name="uraian_kegiatan" value="{{ $awal('uraian_kegiatan', '') }}" required
-                            placeholder="Rapat Monitoring dan Evaluasi Nilai Ekonomi Karbon dan Gas Rumah Kaca"
-                            class="{{ $inputClass }}">
-                    </div>
-                    <div>
-                        <label class="{{ $labelClass }}">Tanggal <span class="text-red-400">*</span></label>
-                        <input type="date" name="tanggal" value="{{ $tanggalAwal }}" required class="{{ $inputClass }}">
-                    </div>
-                </div>
-
-                {{-- Provinsi -> Kab/Kota: dikelola lokasi.js + searchable.js --}}
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <div>
-                        <label class="{{ $labelClass }}">Provinsi <span class="text-red-400">*</span></label>
-                        <div class="relative">
-                            <select name="provinsi" id="nominatif-provinsi" required
-                                class="js-searchable {{ $selectClass }}" data-placeholder="Cari provinsi...">
-                                <option value="" disabled {{ $provinsiDipilih ? '' : 'selected' }}>— Pilih Provinsi —
-                                </option>
-                                @foreach ($provinsiList as $p)
-                                    <option value="{{ $p }}" @selected($provinsiDipilih === $p)>
-                                        {{ $p }}
-                                    </option>
-                                @endforeach
-                                {{-- Data lama yang provinsinya belum ada di master tetap ditampilkan --}}
-                                @if ($provinsiDipilih && !in_array($provinsiDipilih, $provinsiList, true))
-                                    <option value="{{ $provinsiDipilih }}" selected>{{ $provinsiDipilih }}</option>
-                                @endif
-                            </select>
-                            {!! $chevron !!}
-                        </div>
-                    </div>
-                    <div>
-                        <label class="{{ $labelClass }}">Kota/Kabupaten <span class="text-red-400">*</span></label>
-                        <div class="relative">
-                            <select name="kota" id="nominatif-kota" required
-                                class="js-searchable {{ $selectClass }} disabled:bg-gray-50 disabled:cursor-not-allowed"
-                                data-placeholder="Cari kab/kota..." data-lokasi-provinsi="#nominatif-provinsi"
-                                data-lokasi-map="{{ json_encode($mapArr) }}" data-lokasi-current="{{ $kotaDipilih }}"
-                                data-lokasi-placeholder="— Pilih Kota/Kabupaten —">
-                            </select>
-                            {!! $chevron !!}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- ===== Section: Penandatangan ===== --}}
-            <div
-                class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
-                <div class="flex items-center gap-2.5 mb-6">
-                    <div class="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 3c0-1.657-3.134-3-7-3s-7 1.343-7 3v2h14v-2z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-800">Penandatangan</h3>
-                        <p class="text-xs text-gray-400">Pegawai yang menandatangani dokumen</p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="{{ $subLabel }}">PPK <span class="text-red-400">*</span></label>
-                        <div class="relative">
-                            <select name="ppk_id" required data-placeholder="Cari PPK..."
-                                class="js-searchable {{ $selectClass }}">
-                                <option value="" disabled {{ $awal('ppk_id') ? '' : 'selected' }}>— Pilih —</option>
-                                @forelse ($ppkList as $p)
-                                    <option value="{{ $p->id }}" @selected($awal('ppk_id') == $p->id)>
-                                        {{ $p->nama_gelar ?? $p->nama }}
-                                    </option>
-                                @empty
-                                    <option value="" disabled>Belum ada pegawai berlabel PPK</option>
-                                @endforelse
-                            </select>
-                            {!! $chevron !!}
-                        </div>
-                    </div>
-                    <div>
-                        <label class="{{ $subLabel }}">Bendahara <span class="text-red-400">*</span></label>
-                        <div class="relative">
-                            <select name="bendahara_id" required data-placeholder="Cari Bendahara..."
-                                class="js-searchable {{ $selectClass }}">
-                                <option value="" disabled {{ $awal('bendahara_id') ? '' : 'selected' }}>— Pilih —
-                                </option>
-                                @forelse ($bendaharaList as $p)
-                                    <option value="{{ $p->id }}" @selected($awal('bendahara_id') == $p->id)>
-                                        {{ $p->nama_gelar ?? $p->nama }}
-                                    </option>
-                                @empty
-                                    <option value="" disabled>Belum ada pegawai berlabel Bendahara</option>
-                                @endforelse
-                            </select>
-                            {!! $chevron !!}
-                        </div>
-                    </div>
-                    <div>
-                        <label class="{{ $subLabel }}">PIC <span class="text-red-400">*</span></label>
-                        <div class="relative">
-                            <select name="pic_id" required data-placeholder="Cari PIC..."
-                                class="js-searchable {{ $selectClass }}">
-                                <option value="" disabled {{ $awal('pic_id') ? '' : 'selected' }}>— Pilih —</option>
-                                @foreach ($pegawaiList as $p)
-                                    <option value="{{ $p->id }}" @selected($awal('pic_id') == $p->id)>
-                                        {{ $p->nama_gelar ?? $p->nama }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            {!! $chevron !!}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- ===== Section: Narasumber ===== --}}
-            <div
-                class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
-                <div class="flex items-center justify-between gap-3 mb-6">
-                    <div class="flex items-center gap-2.5">
-                        <div class="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none"
-                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-semibold text-gray-800">Narasumber</h3>
-                            <p class="text-xs text-gray-400">Bruto = honor x OJ. Pajak = bruto x tarif. Netto = bruto
-                                dikurangi pajak.</p>
-                        </div>
-                    </div>
-                    <span class="flex-shrink-0 text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-1"
-                        x-text="rows.length + ' orang'"></span>
-                </div>
-
-                <div class="space-y-4">
-                    <template x-for="(row, i) in rows" :key="row.k">
-                        <div
-                            class="border border-gray-200 border-l-4 border-l-gray-400 rounded-xl p-4 sm:p-5 space-y-4 shadow-sm bg-white hover:border-gray-300 transition-all">
-                            <div class="flex items-center justify-between gap-3 pb-2 border-b border-gray-100">
-                                <div class="flex items-center gap-2.5 min-w-0">
-                                    <span
-                                        class="h-7 w-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 bg-gray-100 text-gray-700 border border-gray-200"
-                                        x-text="i + 1"></span>
-                                    <span class="text-sm font-semibold text-gray-800 truncate"
-                                        x-text="row.nama || ('Narasumber ' + (i + 1))"></span>
-                                </div>
-                                <button type="button" @click="removeRow(i)" x-show="rows.length > 1"
-                                    class="text-xs text-rose-500 hover:text-rose-700 font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition flex-shrink-0">Hapus</button>
+                    {{-- ===== Section: Informasi Kegiatan ===== --}}
+                    <div
+                        class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
+                        <div class="flex items-center gap-2.5 mb-6">
+                            <div class="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
                             </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-800">Informasi Kegiatan</h3>
+                                <p class="text-xs text-gray-400">Uraian kegiatan, tanggal, dan lokasi yang tampil di
+                                    dokumen</p>
+                            </div>
+                        </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="{{ $subLabel }}">Nama <span class="text-red-400">*</span></label>
-                                    <input type="text" :name="'peserta[' + i + '][nama]'" x-model="row.nama" required
-                                        autocomplete="off" class="{{ $inputClass }} bg-white">
-                                </div>
-                                <div>
-                                    <label class="{{ $subLabel }}">NPWP <span class="text-red-400">*</span></label>
-                                    <input type="text" inputmode="numeric" :name="'peserta[' + i + '][npwp]'"
-                                        x-model="row.npwp" required placeholder="00.000.000.0-000.000"
-                                        class="{{ $inputClass }} bg-white">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="sm:col-span-2">
+                                <label class="{{ $labelClass }}">Nama Kegiatan <span
+                                        class="text-red-400">*</span></label>
+                                <input type="text" name="uraian_kegiatan" value="{{ $awal('uraian_kegiatan', '') }}"
+                                    required
+                                    placeholder="Rapat Monitoring dan Evaluasi Nilai Ekonomi Karbon dan Gas Rumah Kaca"
+                                    class="{{ $inputClass }}">
+                            </div>
+                            <div>
+                                <label class="{{ $labelClass }}">Tanggal <span class="text-red-400">*</span></label>
+                                <input type="date" name="tanggal" value="{{ $tanggalAwal }}" required
+                                    class="{{ $inputClass }}">
+                            </div>
+                        </div>
+
+                        {{-- Provinsi -> Kab/Kota: dikelola lokasi.js + searchable.js --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="{{ $labelClass }}">Provinsi <span class="text-red-400">*</span></label>
+                                <div class="relative">
+                                    <select name="provinsi" id="nominatif-provinsi" required
+                                        class="js-searchable {{ $selectClass }}" data-placeholder="Cari provinsi...">
+                                        <option value="" disabled {{ $provinsiDipilih ? '' : 'selected' }}>— Pilih
+                                            Provinsi —
+                                        </option>
+                                        @foreach ($provinsiList as $p)
+                                            <option value="{{ $p }}" @selected($provinsiDipilih === $p)>
+                                                {{ $p }}
+                                            </option>
+                                        @endforeach
+                                        {{-- Data lama yang provinsinya belum ada di master tetap ditampilkan --}}
+                                        @if ($provinsiDipilih && !in_array($provinsiDipilih, $provinsiList, true))
+                                            <option value="{{ $provinsiDipilih }}" selected>{{ $provinsiDipilih }}</option>
+                                        @endif
+                                    </select>
+                                    {!! $chevron !!}
                                 </div>
                             </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                    <label class="{{ $subLabel }}">Instansi <span class="text-red-400">*</span></label>
-                                    <input type="text" :name="'peserta[' + i + '][instansi]'" x-model="row.instansi"
-                                        required placeholder="Biro Perencanaan, Kementerian ..."
-                                        class="{{ $inputClass }} bg-white">
-                                </div>
-                                <div>
-                                    <label class="{{ $subLabel }}">Jabatan <span class="text-red-400">*</span></label>
-                                    <input type="text" :name="'peserta[' + i + '][jabatan]'" x-model="row.jabatan"
-                                        required placeholder="Kepala Biro / Analis..."
-                                        class="{{ $inputClass }} bg-white">
-                                </div>
-                                <div>
-                                    <label class="{{ $subLabel }}">Golongan <span class="text-red-400">*</span></label>
-                                    <input type="text" list="daftar-golongan" :name="'peserta[' + i + '][golongan]'"
-                                        x-model="row.golongan" @input="onGolongan(row)" required autocomplete="off"
-                                        placeholder="IV/a" class="{{ $inputClass }} bg-white">
+                            <div>
+                                <label class="{{ $labelClass }}">Kota/Kabupaten <span
+                                        class="text-red-400">*</span></label>
+                                <div class="relative">
+                                    <select name="kota" id="nominatif-kota" required
+                                        class="js-searchable {{ $selectClass }} disabled:bg-gray-50 disabled:cursor-not-allowed"
+                                        data-placeholder="Cari kab/kota..." data-lokasi-provinsi="#nominatif-provinsi"
+                                        data-lokasi-map="{{ json_encode($mapArr) }}"
+                                        data-lokasi-current="{{ $kotaDipilih }}"
+                                        data-lokasi-placeholder="— Pilih Kota/Kabupaten —">
+                                    </select>
+                                    {!! $chevron !!}
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                <div class="col-span-2 sm:col-span-1" x-data="{ open: false }"
-                                    @click.outside="open = false" @keydown.escape="open = false">
-                                    <label class="{{ $subLabel }}">Honor per OJ <span
-                                            class="text-red-400">*</span></label>
-                                    <div class="relative">
-                                        <span
-                                            class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">Rp</span>
-                                        <input type="text" inputmode="numeric" :name="'peserta[' + i + '][honor]'"
-                                            :value="fmt(row.honor)" @input="setHonor(row, $event)" @focus="open = true"
-                                            autocomplete="off" required placeholder="0"
-                                            class="w-full border border-gray-200 bg-white rounded-xl pl-9 pr-9 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
-                                        <svg xmlns="http://www.w3.org/2000/svg"
-                                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
-                                            :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
-                                            stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                        </svg>
+                    {{-- ===== Section: Penandatangan ===== --}}
+                    <div
+                        class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
+                        <div class="flex items-center gap-2.5 mb-6">
+                            <div class="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 3c0-1.657-3.134-3-7-3s-7 1.343-7 3v2h14v-2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-800">Penandatangan</h3>
+                                <p class="text-xs text-gray-400">Pegawai yang menandatangani dokumen</p>
+                            </div>
+                        </div>
 
-                                        {{-- Saran tarif: klik untuk mengisi, atau tetap ketik sendiri --}}
-                                        <div x-show="open" x-cloak
-                                            class="absolute z-20 top-full left-0 mt-1 w-full sm:w-96 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
-                                            <p class="px-3.5 pt-1.5 pb-1 text-[11px] text-gray-400">Tarif honorarium
-                                                narasumber, atau ketik nominal sendiri</p>
-                                            <template x-for="t in tarif" :key="t.honor">
-                                                <button type="button" @mousedown.prevent
-                                                    @click="row.honor = String(t.honor); open = false"
-                                                    class="w-full flex items-center justify-between gap-3 px-3.5 py-2 text-left hover:bg-blue-50 transition"
-                                                    :class="Number(digits(row.honor)) === t.honor ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
-                                                    <span class="text-xs leading-snug" x-text="t.label"></span>
-                                                    <span class="text-xs font-semibold flex-shrink-0"
-                                                        x-text="'Rp ' + rupiah(t.honor)"></span>
-                                                </button>
-                                            </template>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="{{ $subLabel }}">PPK <span class="text-red-400">*</span></label>
+                                <div class="relative">
+                                    <select name="ppk_id" required data-placeholder="Cari PPK..."
+                                        class="js-searchable {{ $selectClass }}">
+                                        <option value="" disabled {{ $awal('ppk_id') ? '' : 'selected' }}>— Pilih —
+                                        </option>
+                                        @forelse ($ppkList as $p)
+                                            <option value="{{ $p->id }}" data-nip="{{ $p->nip }}"
+                                                @selected($awal('ppk_id') == $p->id)>
+                                                {{ $p->nama_gelar ?? $p->nama }}
+                                            </option>
+                                        @empty
+                                            <option value="" disabled>Belum ada pegawai berlabel PPK</option>
+                                        @endforelse
+                                    </select>
+                                    {!! $chevron !!}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="{{ $subLabel }}">Bendahara <span class="text-red-400">*</span></label>
+                                <div class="relative">
+                                    <select name="bendahara_id" required data-placeholder="Cari Bendahara..."
+                                        class="js-searchable {{ $selectClass }}">
+                                        <option value="" disabled {{ $awal('bendahara_id') ? '' : 'selected' }}>— Pilih
+                                            —
+                                        </option>
+                                        @forelse ($bendaharaList as $p)
+                                            <option value="{{ $p->id }}" data-nip="{{ $p->nip }}"
+                                                @selected($awal('bendahara_id') == $p->id)>
+                                                {{ $p->nama_gelar ?? $p->nama }}
+                                            </option>
+                                        @empty
+                                            <option value="" disabled>Belum ada pegawai berlabel Bendahara</option>
+                                        @endforelse
+                                    </select>
+                                    {!! $chevron !!}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="{{ $subLabel }}">PIC <span class="text-red-400">*</span></label>
+                                <div class="relative">
+                                    <select name="pic_id" required data-placeholder="Cari PIC..."
+                                        class="js-searchable {{ $selectClass }}">
+                                        <option value="" disabled {{ $awal('pic_id') ? '' : 'selected' }}>— Pilih —
+                                        </option>
+                                        @foreach ($pegawaiList as $p)
+                                            <option value="{{ $p->id }}" @selected($awal('pic_id') == $p->id)>
+                                                {{ $p->nama_gelar ?? $p->nama }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    {!! $chevron !!}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- ===== Section: Narasumber ===== --}}
+                    <div
+                        class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 lg:p-9">
+                        <div class="flex items-center justify-between gap-3 mb-6">
+                            <div class="flex items-center gap-2.5">
+                                <div
+                                    class="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none"
+                                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-800">Narasumber</h3>
+                                    <p class="text-xs text-gray-400">Bruto = honor x OJ. Pajak = bruto x tarif. Netto =
+                                        bruto
+                                        dikurangi pajak.</p>
+                                </div>
+                            </div>
+                            <span
+                                class="flex-shrink-0 text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-1"
+                                x-text="rows.length + ' orang'"></span>
+                        </div>
+
+                        <div class="space-y-4">
+                            <template x-for="(row, i) in rows" :key="row.k">
+                                <div
+                                    class="border border-gray-200 border-l-4 border-l-gray-400 rounded-xl p-4 sm:p-5 space-y-4 shadow-sm bg-white hover:border-gray-300 transition-all">
+                                    <div class="flex items-center justify-between gap-3 pb-2 border-b border-gray-100">
+                                        <div class="flex items-center gap-2.5 min-w-0">
+                                            <span
+                                                class="h-7 w-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 bg-gray-100 text-gray-700 border border-gray-200"
+                                                x-text="i + 1"></span>
+                                            <span class="text-sm font-semibold text-gray-800 truncate"
+                                                x-text="row.nama || ('Narasumber ' + (i + 1))"></span>
+                                        </div>
+                                        <button type="button" @click="removeRow(i)" x-show="rows.length > 1"
+                                            class="text-xs text-rose-500 hover:text-rose-700 font-medium px-2 py-1 rounded-lg hover:bg-rose-50 transition flex-shrink-0">Hapus</button>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="{{ $subLabel }}">Nama <span
+                                                    class="text-red-400">*</span></label>
+                                            <input type="text" :name="'peserta[' + i + '][nama]'" x-model="row.nama"
+                                                required autocomplete="off" class="{{ $inputClass }} bg-white">
+                                        </div>
+                                        <div>
+                                            <label class="{{ $subLabel }}">NPWP <span
+                                                    class="text-red-400">*</span></label>
+                                            <input type="text" inputmode="numeric" :name="'peserta[' + i + '][npwp]'"
+                                                x-model="row.npwp" required placeholder="00.000.000.0-000.000"
+                                                class="{{ $inputClass }} bg-white">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="{{ $subLabel }}">Instansi <span
+                                                    class="text-red-400">*</span></label>
+                                            <input type="text" :name="'peserta[' + i + '][instansi]'"
+                                                x-model="row.instansi" required
+                                                placeholder="Biro Perencanaan, Kementerian ..."
+                                                class="{{ $inputClass }} bg-white">
+                                        </div>
+                                        <div>
+                                            <label class="{{ $subLabel }}">Jabatan <span
+                                                    class="text-red-400">*</span></label>
+                                            <input type="text" :name="'peserta[' + i + '][jabatan]'"
+                                                x-model="row.jabatan" required placeholder="Kepala Biro / Analis..."
+                                                class="{{ $inputClass }} bg-white">
+                                        </div>
+                                        <div>
+                                            <label class="{{ $subLabel }}">Golongan <span
+                                                    class="text-red-400">*</span></label>
+                                            <input type="text" list="daftar-golongan"
+                                                :name="'peserta[' + i + '][golongan]'" x-model="row.golongan"
+                                                @input="onGolongan(row)" required autocomplete="off" placeholder="IV/a"
+                                                class="{{ $inputClass }} bg-white">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        <div class="col-span-2 sm:col-span-1" x-data="{ open: false }"
+                                            @click.outside="open = false" @keydown.escape="open = false">
+                                            <label class="{{ $subLabel }}">Honor per OJ <span
+                                                    class="text-red-400">*</span></label>
+                                            <div class="relative">
+                                                <span
+                                                    class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">Rp</span>
+                                                <input type="text" inputmode="numeric"
+                                                    :name="'peserta[' + i + '][honor]'" :value="fmt(row.honor)"
+                                                    @input="setHonor(row, $event)" @focus="open = true"
+                                                    autocomplete="off" required placeholder="0"
+                                                    class="w-full border border-gray-200 bg-white rounded-xl pl-9 pr-9 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
+                                                <svg xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform"
+                                                    :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24"
+                                                    stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        d="M19 9l-7 7-7-7" />
+                                                </svg>
+
+                                                {{-- Saran tarif: klik untuk mengisi, atau tetap ketik sendiri --}}
+                                                <div x-show="open" x-cloak
+                                                    class="absolute z-20 top-full left-0 mt-1 w-full sm:w-96 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
+                                                    <p class="px-3.5 pt-1.5 pb-1 text-[11px] text-gray-400">Tarif
+                                                        honorarium
+                                                        narasumber, atau ketik nominal sendiri</p>
+                                                    <template x-for="t in tarif" :key="t.honor">
+                                                        <button type="button" @mousedown.prevent
+                                                            @click="row.honor = String(t.honor); open = false"
+                                                            class="w-full flex items-center justify-between gap-3 px-3.5 py-2 text-left hover:bg-blue-50 transition"
+                                                            :class="Number(digits(row.honor)) === t.honor ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'">
+                                                            <span class="text-xs leading-snug" x-text="t.label"></span>
+                                                            <span class="text-xs font-semibold flex-shrink-0"
+                                                                x-text="'Rp ' + rupiah(t.honor)"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="{{ $subLabel }}">OJ <span
+                                                    class="text-red-400">*</span></label>
+                                            <input type="number" min="1" step="1" inputmode="numeric"
+                                                :name="'peserta[' + i + '][oj]'" x-model="row.oj" required
+                                                class="{{ $inputClass }} bg-white">
+                                        </div>
+                                        <div>
+                                            <label class="{{ $subLabel }}">Tarif pajak (%)</label>
+                                            <input type="number" min="0" max="100" step="0.01" inputmode="decimal"
+                                                :name="'peserta[' + i + '][pajak_persen]'" x-model="row.pajak_persen"
+                                                @input="row.auto = false" placeholder="0"
+                                                class="{{ $inputClass }} bg-white">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-3 gap-2 pt-3 border-t border-gray-200/70 text-xs">
+                                        <div>
+                                            <div class="text-gray-400">Bruto</div>
+                                            <div class="mt-0.5 text-sm font-semibold text-gray-800"
+                                                x-text="'Rp ' + rupiah(bruto(row))"></div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Pajak</div>
+                                            <div class="mt-0.5 text-sm font-semibold text-gray-800"
+                                                x-text="'Rp ' + rupiah(pajak(row))"></div>
+                                        </div>
+                                        <div>
+                                            <div class="text-gray-400">Netto</div>
+                                            <div class="mt-0.5 text-sm font-semibold text-gray-900"
+                                                x-text="'Rp ' + rupiah(netto(row))"></div>
                                         </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="{{ $subLabel }}">OJ <span class="text-red-400">*</span></label>
-                                    <input type="number" min="1" step="1" inputmode="numeric"
-                                        :name="'peserta[' + i + '][oj]'" x-model="row.oj" required
-                                        class="{{ $inputClass }} bg-white">
+                            </template>
+                        </div>
+
+                        <button type="button" @click="addRow()"
+                            class="mt-4 w-full inline-flex items-center justify-center gap-1.5 border border-dashed border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-[0.99] font-semibold px-3.5 py-3 rounded-xl text-xs transition-all">
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Tambah Narasumber
+                        </button>
+
+                        {{-- Ringkasan total --}}
+                        <div class="mt-8 rounded-2xl bg-gray-50/80 border border-gray-100 p-5 sm:p-6">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Ringkasan Total
+                            </p>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
+                                    <div class="text-xs text-gray-400 mb-1.5">Total bruto</div>
+                                    <div class="text-lg font-semibold text-gray-900 tabular-nums"
+                                        x-text="'Rp ' + rupiah(sum('bruto'))"></div>
                                 </div>
-                                <div>
-                                    <label class="{{ $subLabel }}">Tarif pajak (%)</label>
-                                    <input type="number" min="0" max="100" step="0.01" inputmode="decimal"
-                                        :name="'peserta[' + i + '][pajak_persen]'" x-model="row.pajak_persen"
-                                        @input="row.auto = false" placeholder="0" class="{{ $inputClass }} bg-white">
+
+                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
+                                    <div class="text-xs text-gray-400 mb-1.5">Total pajak</div>
+                                    <div class="text-lg font-semibold text-gray-900 tabular-nums"
+                                        x-text="'Rp ' + rupiah(sum('pajak'))"></div>
+                                </div>
+
+                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
+                                    <div class="text-xs text-gray-400 mb-1.5">Total netto</div>
+                                    <div class="text-lg font-semibold text-gray-900 tabular-nums"
+                                        x-text="'Rp ' + rupiah(sum('netto'))"></div>
                                 </div>
                             </div>
-
-                            <div class="grid grid-cols-3 gap-2 pt-3 border-t border-gray-200/70 text-xs">
-                                <div>
-                                    <div class="text-gray-400">Bruto</div>
-                                    <div class="mt-0.5 text-sm font-semibold text-gray-800"
-                                        x-text="'Rp ' + rupiah(bruto(row))"></div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-400">Pajak</div>
-                                    <div class="mt-0.5 text-sm font-semibold text-gray-800"
-                                        x-text="'Rp ' + rupiah(pajak(row))"></div>
-                                </div>
-                                <div>
-                                    <div class="text-gray-400">Netto</div>
-                                    <div class="mt-0.5 text-sm font-semibold text-gray-900"
-                                        x-text="'Rp ' + rupiah(netto(row))"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <button type="button" @click="addRow()"
-                    class="mt-4 w-full inline-flex items-center justify-center gap-1.5 border border-dashed border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-[0.99] font-semibold px-3.5 py-3 rounded-xl text-xs transition-all">
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Tambah Narasumber
-                </button>
-
-                {{-- Ringkasan total --}}
-                <div class="mt-8 rounded-2xl bg-gray-50/80 border border-gray-100 p-5 sm:p-6">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Ringkasan Total</p>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                        <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                            <div class="text-xs text-gray-400 mb-1.5">Total bruto</div>
-                            <div class="text-lg font-semibold text-gray-900 tabular-nums"
-                                x-text="'Rp ' + rupiah(sum('bruto'))"></div>
-                        </div>
-
-                        <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                            <div class="text-xs text-gray-400 mb-1.5">Total pajak</div>
-                            <div class="text-lg font-semibold text-gray-900 tabular-nums"
-                                x-text="'Rp ' + rupiah(sum('pajak'))"></div>
-                        </div>
-
-                        <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                            <div class="text-xs text-gray-400 mb-1.5">Total netto</div>
-                            <div class="text-lg font-semibold text-gray-900 tabular-nums"
-                                x-text="'Rp ' + rupiah(sum('netto'))"></div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <datalist id="daftar-golongan">
-                @foreach (['IV/a', 'IV/b', 'IV/c', 'IV/d', 'III/a', 'III/b', 'III/c', 'III/d', 'II/a', 'II/b', 'II/c', 'II/d', 'I/a', 'I/b', 'I/c', 'I/d'] as $gol)
-                    <option value="{{ $gol }}"></option>
-                @endforeach
-            </datalist>
+                    <datalist id="daftar-golongan">
+                        @foreach (['IV/a', 'IV/b', 'IV/c', 'IV/d', 'III/a', 'III/b', 'III/c', 'III/d', 'II/a', 'II/b', 'II/c', 'II/d', 'I/a', 'I/b', 'I/c', 'I/d'] as $gol)
+                            <option value="{{ $gol }}"></option>
+                        @endforeach
+                    </datalist>
 
-            {{-- Actions --}}
-            <div
-                class="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 sm:px-7 py-4">
-                <a href="{{ $memo && !$isEdit ? route('memo.index') : route('nominatif.index') }}"
-                    class="w-full sm:w-auto text-center text-sm text-gray-400 hover:text-gray-600 transition">
-                    &larr; Batal
-                </a>
-                <button type="submit"
-                    class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md shadow-blue-600/20 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                    {{ $submitLabel }}
-                </button>
-            </div>
-        </form>
+                    {{-- Actions --}}
+                    <div
+                        class="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 sm:px-7 py-4">
+                        <a href="{{ $memo && !$isEdit ? route('memo.index') : route('nominatif.index') }}"
+                            class="w-full sm:w-auto text-center text-sm text-gray-400 hover:text-gray-600 transition">
+                            &larr; Batal
+                        </a>
+                        <button type="submit"
+                            class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold px-5 py-2.5 rounded-xl text-sm shadow-md shadow-blue-600/20 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            {{ $submitLabel }}
+                        </button>
+                    </div>
+                </form>
+
+            </div>{{-- /kolom form --}}
+
+            {{-- Kolom kanan: live preview (di dalam .nom-layout agar mewarisi x-data) --}}
+            @include('nominatif.preview-honor')
+
+        </div>{{-- /.nom-layout --}}
     </div>
 </div>
 
@@ -514,6 +558,20 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
 
     select::-ms-expand {
         display: none;
+    }
+
+    /* Layout form + preview: satu kolom di layar sempit, dua kolom mulai 1180px */
+    .nom-layout {
+        display: block;
+    }
+
+    @media (min-width: 1180px) {
+        .nom-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 1.5rem;
+            align-items: start;
+        }
     }
 </style>
 
