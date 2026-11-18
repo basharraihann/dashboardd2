@@ -81,17 +81,20 @@
     <h4>DAFTAR NOMINATIF</h4>
     <h4>{{ $entry->uraian_kegiatan }}</h4>
 
+    {{-- Kolom (9): No | Uraian | Harga | Jumlah Satuan | Sub Total | PPh 22 | PPh 23 | PPN | Total
+    Harga dan Sub Total termasuk PPN, jadi: Sub Total - PPh 22 - PPh 23 - PPN = Total --}}
     <table class="grid">
         <thead>
             <tr>
                 <th style="width:4%">No</th>
                 <th>URAIAN</th>
-                <th style="width:10%">HARGA</th>
+                <th style="width:9%">HARGA</th>
                 <th style="width:9%">JUMLAH SATUAN</th>
                 <th style="width:10%">SUB TOTAL</th>
-                <th style="width:9%">PPH 22</th>
-                <th style="width:9%">PPH 23</th>
-                <th style="width:11%">TOTAL</th>
+                <th style="width:8%">PPH 22</th>
+                <th style="width:8%">PPH 23</th>
+                <th style="width:9%">PPN</th>
+                <th style="width:10%">TOTAL</th>
             </tr>
         </thead>
         <tbody>
@@ -105,22 +108,20 @@
                     <td class="r">{{ $f($it->subtotal) }}</td>
                     <td class="r">{{ $f($it->pph22) }}</td>
                     <td class="r">{{ $f($it->pph23) }}</td>
+                    <td class="r">{{ $f($it->ppn) }}</td>
                     <td class="r b">{{ $f($it->total) }}</td>
                 </tr>
             @endforeach
 
             <tr>
-                <td colspan="5" class="gray">PPN</td>
-                <td colspan="3" class="r">{{ $f($entry->totalPpn()) }}</td>
-            </tr>
-            <tr>
                 <td colspan="5" class="gray">PPH 22 &amp; PPH 23</td>
-                <td class="r">{{ $f($entry->totalPph22()) }}</td>
-                <td class="r">{{ $f($entry->totalPph23()) }}</td>
-                <td class="r">{{ $f($entry->totalPph22() + $entry->totalPph23()) }}</td>
+                <td class="r">-</td>
+                <td class="r">-</td>
+                <td></td>
+                <td></td>
             </tr>
             <tr>
-                <td colspan="7" class="gray">TOTAL</td>
+                <td colspan="8" class="gray">TOTAL</td>
                 <td class="r b">{{ $f($entry->totalAkhir()) }}</td>
             </tr>
         </tbody>

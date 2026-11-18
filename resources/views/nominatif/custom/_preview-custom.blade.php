@@ -1,13 +1,17 @@
 {{--
 Live preview "Daftar Nominatif" (meniru template PDF nominatif).
-Dipasang di kolom kanan form custom: @include('nominatif._preview-custom')
+Dipasang di kolom kanan form custom: @include('nominatif.custom._preview-custom')
 PENTING: harus berada DI DALAM elemen yang punya x-data="customForm(...)" supaya bisa baca `rows`.
 
 Tampil/sembunyi diatur CSS .nom-aside di bawah (tampil mulai lebar 1180px), tidak pakai class Tailwind
 supaya tidak tergantung build. Lebar kolom (col-span) diatur di <style> form.blade.php.
 
-Orientasi kertas: default landscape (tabel 8 kolom). Kalau PDF-nya portrait, pasang
-@include('nominatif._preview-custom', ['landscape' => false])
+Kolom (9): No | Uraian | Harga | Jumlah Satuan | Sub Total | PPh 22 | PPh 23 | PPN | Total
+Harga dan Sub Total ditampilkan TERMASUK PPN (hargaBruto / bruto), supaya terbaca:
+Sub Total - PPh 22 - PPh 23 - PPN = Total
+
+Orientasi kertas: default landscape. Kalau PDF-nya portrait, pasang
+@include('nominatif.custom._preview-custom', ['landscape' => false])
 --}}
 @php
     $landscape = $landscape ?? true;
@@ -15,10 +19,9 @@ Orientasi kertas: default landscape (tabel 8 kolom). Kalau PDF-nya portrait, pas
     $ph = $landscape ? 794 : 1123; // tinggi minimum kertas
 @endphp
 
-{{-- x-data bersarang: tambah helper format; `rows`, sub(), ppn(), sum(), dst. diwarisi dari customForm --}}
+{{-- x-data bersarang: tambah helper format; `rows`, bruto(), ppn(), sum(), dst. diwarisi dari customForm --}}
 <aside id="nom-preview" class="nom-aside min-w-0" x-data="{
         f(n) { n = Math.round(Number(n) || 0); return n ? n.toLocaleString('en-US') : '-'; },
-        harga(r) { return Number(String(r.harga == null ? '' : r.harga).replace(/\D/g, '')) || 0; },
         jml(r) { const j = +(parseFloat(r.jumlah) || 0).toFixed(2); return (j + ' ' + (r.satuan || '')).trim(); }
     }">
 
@@ -46,12 +49,13 @@ Orientasi kertas: default landscape (tabel 8 kolom). Kalau PDF-nya portrait, pas
                             <tr>
                                 <th style="width:4%">No</th>
                                 <th>URAIAN</th>
-                                <th style="width:10%">HARGA</th>
+                                <th style="width:9%">HARGA</th>
                                 <th style="width:9%">JUMLAH SATUAN</th>
                                 <th style="width:10%">SUB TOTAL</th>
-                                <th style="width:9%">PPH 22</th>
-                                <th style="width:9%">PPH 23</th>
-                                <th style="width:11%">TOTAL</th>
+                                <th style="width:8%">PPH 22</th>
+                                <th style="width:8%">PPH 23</th>
+                                <th style="width:9%">PPN</th>
+                                <th style="width:10%">TOTAL</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -60,27 +64,25 @@ Orientasi kertas: default landscape (tabel 8 kolom). Kalau PDF-nya portrait, pas
                                     <td x-text="i + 1"></td>
                                     <td x-text="row.uraian || 'Uraian item...'" :class="row.uraian ? '' : 'pv-empty'">
                                     </td>
-                                    <td class="r" x-text="f(harga(row))"></td>
+                                    <td class="r" x-text="f(hargaBruto(row))"></td>
                                     <td class="c" x-text="jml(row)"></td>
-                                    <td class="r" x-text="f(sub(row))"></td>
+                                    <td class="r" x-text="f(bruto(row))"></td>
                                     <td class="r" x-text="f(pph22(row))"></td>
                                     <td class="r" x-text="f(pph23(row))"></td>
+                                    <td class="r" x-text="f(ppn(row))"></td>
                                     <td class="r b" x-text="f(total(row))"></td>
                                 </tr>
                             </template>
 
                             <tr>
-                                <td colspan="5" class="gray">PPN</td>
-                                <td colspan="3" class="r" x-text="f(sum('ppn'))"></td>
-                            </tr>
-                            <tr>
                                 <td colspan="5" class="gray">PPH 22 &amp; PPH 23</td>
-                                <td class="r" x-text="f(sum('pph22'))"></td>
-                                <td class="r" x-text="f(sum('pph23'))"></td>
-                                <td class="r" x-text="f(sum('pph22') + sum('pph23'))"></td>
+                                <td class="r">-</td>
+                                <td class="r">-</td>
+                                <td></td>
+                                <td></td>
                             </tr>
                             <tr>
-                                <td colspan="7" class="gray">TOTAL</td>
+                                <td colspan="8" class="gray">TOTAL</td>
                                 <td class="r b" x-text="f(sum('total'))"></td>
                             </tr>
                         </tbody>

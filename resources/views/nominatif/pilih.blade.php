@@ -150,16 +150,19 @@
                                     class="mx-auto mt-[0.5em] mb-[1.6em] w-[9em] border-b border-dotted border-gray-500">
                                 </div>
 
+                                {{-- 9 kolom, sama dengan PDF: No | Uraian | Harga | Jumlah Satuan | Sub Total | PPh 22
+                                | PPh 23 | PPN | Total --}}
                                 <table class="w-full border-collapse table-fixed">
                                     <colgroup>
                                         <col style="width:4%">
-                                        <col style="width:37%">
+                                        <col style="width:31%">
                                         <col style="width:11%">
                                         <col style="width:9%">
                                         <col style="width:10%">
+                                        <col style="width:8%">
+                                        <col style="width:8%">
                                         <col style="width:9%">
-                                        <col style="width:9%">
-                                        <col style="width:11%">
+                                        <col style="width:10%">
                                     </colgroup>
                                     <thead>
                                         <tr>
@@ -170,6 +173,7 @@
                                             <th class="{{ $th }}">SUB TOTAL</th>
                                             <th class="{{ $th }}">PPH 22</th>
                                             <th class="{{ $th }}">PPH 23</th>
+                                            <th class="{{ $th }}">PPN</th>
                                             <th class="{{ $th }}">TOTAL</th>
                                         </tr>
                                     </thead>
@@ -183,19 +187,17 @@
                                             <td class="{{ $c }} text-right">-</td>
                                             <td class="{{ $c }} text-right">-</td>
                                             <td class="{{ $c }} text-right">-</td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="5" class="{{ $c }} bg-gray-300">PPN</td>
-                                            <td colspan="3" class="{{ $c }} text-right">-</td>
+                                            <td class="{{ $c }} text-right">-</td>
                                         </tr>
                                         <tr>
                                             <td colspan="5" class="{{ $c }} bg-gray-300">PPH 22 &amp; PPH 23</td>
                                             <td class="{{ $c }} text-right">-</td>
                                             <td class="{{ $c }} text-right">-</td>
-                                            <td class="{{ $c }} text-right">-</td>
+                                            <td class="{{ $c }}"></td>
+                                            <td class="{{ $c }}"></td>
                                         </tr>
                                         <tr>
-                                            <td colspan="7" class="{{ $c }} bg-gray-300">TOTAL</td>
+                                            <td colspan="8" class="{{ $c }} bg-gray-300">TOTAL</td>
                                             <td class="{{ $c }} text-right">-</td>
                                         </tr>
                                     </tbody>

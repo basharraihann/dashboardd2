@@ -29,8 +29,8 @@
         $tanggalAwal = old(
             'tanggal',
             $nominatif?->tanggal
-                ? $nominatif->tanggal->toDateString()
-                : ($tglPrefill ? \Carbon\Carbon::parse($tglPrefill)->toDateString() : now()->toDateString()),
+            ? $nominatif->tanggal->toDateString()
+            : ($tglPrefill ? \Carbon\Carbon::parse($tglPrefill)->toDateString() : now()->toDateString()),
         );
 
         $ppkList = $pegawaiList->filter(fn($p) => str_contains($p->role_penandatangan ?? '', 'PPK'))->values();
@@ -52,6 +52,7 @@
                     'harga' => $i->harga,
                     'jumlah' => $i->jumlah,
                     'satuan' => $i->satuan,
+                    'harga_termasuk_ppn' => (bool) ($i->harga_termasuk_ppn ?? false),
                     'ppn_persen' => $i->ppn_persen,
                     'pph22_persen' => $i->pph22_persen,
                     'pph23_persen' => $i->pph23_persen,
@@ -59,7 +60,7 @@
                 : [];
         }
         if (empty($rows)) {
-            $rows = [['jumlah' => 1, 'satuan' => 'PKT']];
+            $rows = [['jumlah' => 1, 'satuan' => 'PKT', 'ppn_persen' => 11]];
         }
 
         $inputClass = 'w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300';
@@ -112,8 +113,7 @@
                 </div>
             @endif
 
-            {{-- Grid 5 bagian: form (2) + preview (3). x-data di sini supaya preview bisa baca `rows`.
-                 Layout dua kolom diatur CSS biasa (.nom-grid) di <style> bawah, bukan class Tailwind. --}}
+            {{-- Grid 5 bagian: form (2) + preview (3). x-data di sini supaya preview bisa baca `rows`. --}}
             <div class="nom-grid" x-data="customForm(@js(array_values($rows)))">
 
                 <form action="{{ $action }}" method="POST" class="nom-form space-y-5 min-w-0">
@@ -218,8 +218,7 @@
                                 <div class="relative">
                                     <select name="penanggung_jawab_id" required data-placeholder="Cari pegawai..."
                                         class="js-searchable {{ $selectClass }}">
-                                        <option value="" disabled
-                                            {{ $awal('penanggung_jawab_id') ? '' : 'selected' }}>
+                                        <option value="" disabled {{ $awal('penanggung_jawab_id') ? '' : 'selected' }}>
                                             — Pilih —</option>
                                         @foreach ($pegawaiList as $p)
                                             <option value="{{ $p->id }}" data-nip="{{ $p->nip }}"
@@ -264,8 +263,8 @@
                                 </div>
                                 <div>
                                     <h3 class="text-sm font-semibold text-gray-800">Rincian Item</h3>
-                                    <p class="text-xs text-gray-400">Isi uraian, harga, dan jumlah. Pajak pilih lewat
-                                        tombol.</p>
+                                    <p class="text-xs text-gray-400">Isi harga sesuai faktur pajak (Harga Jual) atau
+                                        nominal total. Pajak dihitung dari DPP.</p>
                                 </div>
                             </div>
                             <span
@@ -302,11 +301,14 @@
                                             <div class="relative">
                                                 <span
                                                     class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">Rp</span>
-                                                <input type="text" inputmode="numeric"
-                                                    :name="'items[' + i + '][harga]'" :value="fmt(row.harga)"
+                                                {{-- Input tampilan (berformat titik ribuan, tidak dikirim) --}}
+                                                <input type="text" inputmode="numeric" :value="fmt(row.harga)"
                                                     @input="setHarga(row, $event)" autocomplete="off" required
                                                     placeholder="0"
                                                     class="w-full border border-gray-200 bg-white rounded-xl pl-9 pr-3 py-2.5 text-sm text-right tabular-nums focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none">
+                                                {{-- Nilai mentah (angka saja) yang dikirim ke server --}}
+                                                <input type="hidden" :name="'items[' + i + '][harga]'"
+                                                    :value="row.harga">
                                             </div>
                                         </div>
                                         <span class="pb-3 text-gray-400 text-sm">&times;</span>
@@ -318,9 +320,29 @@
                                         </div>
                                         <div class="w-28">
                                             <label class="{{ $subLabel }}">Satuan</label>
-                                            <input type="text" :name="'items[' + i + '][satuan]'"
-                                                x-model="row.satuan" autocomplete="off" placeholder="PKT"
-                                                class="{{ $inputClass }} bg-white">
+                                            <input type="text" :name="'items[' + i + '][satuan]'" x-model="row.satuan"
+                                                autocomplete="off" placeholder="PKT" class="{{ $inputClass }} bg-white">
+                                        </div>
+                                    </div>
+
+                                    {{-- Jenis harga: di luar PPN / sudah termasuk PPN --}}
+                                    <div>
+                                        <label class="{{ $subLabel }}">Jenis harga</label>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button type="button" @click="row.inklusif = false"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition"
+                                                :class="!row.inklusif ?
+                                                    'bg-blue-600 border-blue-600 text-white' :
+                                                    'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'">
+                                                Di luar PPN (Harga Jual faktur)
+                                            </button>
+                                            <button type="button" @click="row.inklusif = true"
+                                                class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition"
+                                                :class="row.inklusif ?
+                                                    'bg-blue-600 border-blue-600 text-white' :
+                                                    'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'">
+                                                Sudah termasuk PPN
+                                            </button>
                                         </div>
                                     </div>
 
@@ -329,7 +351,7 @@
                                         <div>
                                             <label class="{{ $subLabel }}">PPN</label>
                                             <div class="flex flex-wrap gap-2">
-                                                <template x-for="p in [0, 11, 12]" :key="'ppn' + p">
+                                                <template x-for="p in [0, 11]" :key="'ppn' + p">
                                                     <button type="button" @click="row.ppn_persen = p"
                                                         class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition"
                                                         :class="pct(row.ppn_persen) === p ?
@@ -340,7 +362,7 @@
                                             </div>
                                         </div>
                                         <div>
-                                            <label class="{{ $subLabel }}">PPh 22</label>
+                                            <label class="{{ $subLabel }}">PPh 22 (barang/ATK)</label>
                                             <div class="flex flex-wrap gap-2">
                                                 <template x-for="p in [0, 1.5, 3]" :key="'p22' + p">
                                                     <button type="button" @click="row.pph22_persen = p"
@@ -353,7 +375,7 @@
                                             </div>
                                         </div>
                                         <div>
-                                            <label class="{{ $subLabel }}">PPh 23</label>
+                                            <label class="{{ $subLabel }}">PPh 23 (konsumsi/jasa)</label>
                                             <div class="flex flex-wrap gap-2">
                                                 <template x-for="p in [0, 2, 4]" :key="'p23' + p">
                                                     <button type="button" @click="row.pph23_persen = p"
@@ -368,18 +390,38 @@
                                     </div>
 
                                     {{-- Hidden: nilai pajak tetap terkirim --}}
-                                    <input type="hidden" :name="'items[' + i + '][ppn_persen]'"
-                                        :value="row.ppn_persen">
+                                    <input type="hidden" :name="'items[' + i + '][harga_termasuk_ppn]'"
+                                        :value="row.inklusif ? 1 : 0">
+                                    <input type="hidden" :name="'items[' + i + '][ppn_persen]'" :value="row.ppn_persen">
                                     <input type="hidden" :name="'items[' + i + '][pph22_persen]'"
                                         :value="row.pph22_persen">
                                     <input type="hidden" :name="'items[' + i + '][pph23_persen]'"
                                         :value="row.pph23_persen">
 
-                                    {{-- Total item --}}
-                                    <div class="flex items-center justify-between pt-3 border-t border-gray-200">
-                                        <span class="text-xs text-gray-400">Total item</span>
-                                        <span class="text-base font-bold text-gray-900 tabular-nums"
-                                            x-text="'Rp ' + rupiah(total(row))"></span>
+                                    {{-- Rincian per item (urutan kolom sama dengan dokumen nominatif) --}}
+                                    <div class="pt-3 border-t border-gray-200 space-y-1 text-xs text-gray-500">
+                                        <div class="flex justify-between">
+                                            <span>Sub Total</span>
+                                            <span class="tabular-nums" x-text="'Rp ' + rupiah(bruto(row))"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>PPh 22</span>
+                                            <span class="tabular-nums" x-text="'- Rp ' + rupiah(pph22(row))"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>PPh 23</span>
+                                            <span class="tabular-nums" x-text="'- Rp ' + rupiah(pph23(row))"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>PPN</span>
+                                            <span class="tabular-nums" x-text="'- Rp ' + rupiah(ppn(row))"></span>
+                                        </div>
+                                        <div
+                                            class="flex items-center justify-between pt-2 mt-1 border-t border-dashed border-gray-300">
+                                            <span class="text-xs font-semibold text-gray-600">Total</span>
+                                            <span class="text-base font-bold text-gray-900 tabular-nums"
+                                                x-text="'Rp ' + rupiah(total(row))"></span>
+                                        </div>
                                     </div>
                                 </div>
                             </template>
@@ -395,31 +437,36 @@
                             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Ringkasan Total
                             </p>
 
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                                    <div class="text-xs text-gray-400 mb-1.5">Sub total</div>
-                                    <div class="text-base font-semibold text-gray-900 tabular-nums whitespace-nowrap"
-                                        x-text="'Rp ' + rupiah(sum('sub'))"></div>
+                            <div class="bg-white border border-gray-100 rounded-xl overflow-hidden text-sm">
+                                <div class="flex justify-between px-5 py-3">
+                                    <span class="text-gray-500">Sub Total</span>
+                                    <span class="tabular-nums font-medium text-gray-900"
+                                        x-text="'Rp ' + rupiah(sum('bruto'))"></span>
                                 </div>
-                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                                    <div class="text-xs text-gray-400 mb-1.5">PPN</div>
-                                    <div class="text-base font-semibold text-gray-900 tabular-nums whitespace-nowrap"
-                                        x-text="'Rp ' + rupiah(sum('ppn'))"></div>
+                                <div class="flex justify-between px-5 py-3 border-t border-gray-100">
+                                    <span class="text-gray-500">PPh 22</span>
+                                    <span class="tabular-nums text-gray-900"
+                                        x-text="'- Rp ' + rupiah(sum('pph22'))"></span>
                                 </div>
-                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                                    <div class="text-xs text-gray-400 mb-1.5">PPh 22</div>
-                                    <div class="text-base font-semibold text-gray-900 tabular-nums whitespace-nowrap"
-                                        x-text="'Rp ' + rupiah(sum('pph22'))"></div>
+                                <div class="flex justify-between px-5 py-3 border-t border-gray-100">
+                                    <span class="text-gray-500">PPh 23</span>
+                                    <span class="tabular-nums text-gray-900"
+                                        x-text="'- Rp ' + rupiah(sum('pph23'))"></span>
                                 </div>
-                                <div class="bg-white border border-gray-100 rounded-xl px-5 py-4">
-                                    <div class="text-xs text-gray-400 mb-1.5">PPh 23</div>
-                                    <div class="text-base font-semibold text-gray-900 tabular-nums whitespace-nowrap"
-                                        x-text="'Rp ' + rupiah(sum('pph23'))"></div>
+                                <div class="flex justify-between px-5 py-3 border-t border-gray-100">
+                                    <span class="text-gray-500">PPN</span>
+                                    <span class="tabular-nums text-gray-900"
+                                        x-text="'- Rp ' + rupiah(sum('ppn'))"></span>
                                 </div>
-                                <div class="col-span-2 bg-white border border-gray-100 rounded-xl px-5 py-4">
-                                    <div class="text-xs text-gray-400 mb-1.5">Total dibayar</div>
-                                    <div class="text-base font-semibold text-gray-900 tabular-nums whitespace-nowrap"
-                                        x-text="'Rp ' + rupiah(sum('total'))"></div>
+                                <div class="flex justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+                                    <span class="font-medium text-gray-600">PPh 22 &amp; PPh 23</span>
+                                    <span class="tabular-nums font-medium text-gray-900"
+                                        x-text="'Rp ' + rupiah(sum('pph'))"></span>
+                                </div>
+                                <div class="flex justify-between px-5 py-4 border-t border-gray-200 bg-blue-50/60">
+                                    <span class="font-bold text-gray-800">TOTAL</span>
+                                    <span class="text-base font-bold text-gray-900 tabular-nums"
+                                        x-text="'Rp ' + rupiah(sum('total'))"></span>
                                 </div>
                             </div>
                         </div>
@@ -523,14 +570,16 @@
                             harga: this.digits(r.harga),
                             jumlah: (r.jumlah === undefined || r.jumlah === null || r.jumlah === '') ? 1 : r.jumlah,
                             satuan: r.satuan || '',
-                            ppn_persen: r.ppn_persen ?? 0,
+                            // true = harga sudah termasuk PPN, false = harga di luar PPN
+                            inklusif: r.harga_termasuk_ppn === true || r.harga_termasuk_ppn === 1 || r.harga_termasuk_ppn === '1',
+                            ppn_persen: r.ppn_persen ?? 11,
                             pph22_persen: r.pph22_persen ?? 0,
                             pph23_persen: r.pph23_persen ?? 0,
                         };
                     },
 
                     addRow() {
-                        this.rows.push(this.baris({ satuan: 'PKT' }));
+                        this.rows.push(this.baris({ satuan: 'PKT', ppn_persen: 11 }));
                         this.$nextTick(() => {
                             const inputs = this.$root.querySelectorAll('textarea[name$="[uraian]"]');
                             if (inputs.length) inputs[inputs.length - 1].focus();
@@ -564,20 +613,64 @@
                         return parseFloat(String(v === null || v === undefined ? '' : v).replace(',', '.')) || 0;
                     },
 
+                    // Nominal harga x jumlah, apa adanya (belum dipisah DPP/PPN)
                     sub(row) {
                         return Math.round((Number(this.digits(row.harga)) || 0) * (parseFloat(row.jumlah) || 0));
                     },
-                    ppn(row) {
-                        return Math.round(this.sub(row) * this.pct(row.ppn_persen) / 100);
+
+                    // DPP:
+                    //  - harga di luar PPN   : DPP = sub
+                    //  - harga sudah termasuk: DPP = sub / (1 + PPN%), mis. sub / 1,11
+                    dpp(row) {
+                        const s = this.sub(row);
+                        const p = this.pct(row.ppn_persen);
+                        if (row.inklusif && p > 0) {
+                            return Math.round(s / (1 + p / 100));
+                        }
+                        return s;
                     },
+
+                    // PPN:
+                    //  - inklusif : sub - DPP (supaya DPP + PPN = sub, tanpa selisih pembulatan)
+                    //  - eksklusif: DPP x PPN%
+                    ppn(row) {
+                        const p = this.pct(row.ppn_persen);
+                        if (row.inklusif && p > 0) {
+                            return this.sub(row) - this.dpp(row);
+                        }
+                        return Math.round(this.dpp(row) * p / 100);
+                    },
+
+                    // PPh selalu dari DPP
                     pph22(row) {
-                        return Math.round(this.sub(row) * this.pct(row.pph22_persen) / 100);
+                        return Math.round(this.dpp(row) * this.pct(row.pph22_persen) / 100);
                     },
                     pph23(row) {
-                        return Math.round(this.sub(row) * this.pct(row.pph23_persen) / 100);
+                        return Math.round(this.dpp(row) * this.pct(row.pph23_persen) / 100);
                     },
+
+                    // Gabungan PPh 22 + PPh 23, untuk baris "PPh 22 & PPh 23"
+                    pph(row) {
+                        return this.pph22(row) + this.pph23(row);
+                    },
+
+                    // Total bersih diterima vendor = Sub total - PPN - PPh 22 - PPh 23
+                    // (sama dengan DPP - PPh, sesuai format dokumen nominatif)
                     total(row) {
-                        return this.sub(row) + this.ppn(row) - this.pph22(row) - this.pph23(row);
+                        return this.bruto(row) - this.ppn(row) - this.pph22(row) - this.pph23(row);
+                    },
+
+                    // Nilai tagihan termasuk PPN (DPP + PPN). Dipakai untuk kolom
+                    // Sub Total di preview dan cetak, supaya tabel terbaca:
+                    // Sub Total - PPN - PPh = Total
+                    bruto(row) {
+                        return this.dpp(row) + this.ppn(row);
+                    },
+
+                    // Harga satuan termasuk PPN untuk kolom Harga di preview/cetak
+                    hargaBruto(row) {
+                        const j = parseFloat(row.jumlah) || 0;
+                        return j > 0 ? Math.round(this.bruto(row) / j) : 0;
                     },
 
                     sum(fn) {
