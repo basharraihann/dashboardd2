@@ -133,17 +133,6 @@
 
     <div class="py-6 px-4 sm:px-6 lg:px-8 max-w-[96rem] mx-auto space-y-5">
 
-        @if (session('error') || $errors->any())
-            <div class="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm space-y-1">
-                @if (session('error'))
-                    <p>{{ session('error') }}</p>
-                @endif
-                @foreach ($errors->all() as $pesanError)
-                    <p>{{ $pesanError }}</p>
-                @endforeach
-            </div>
-        @endif
-
         {{-- ============ BAGIAN ATAS: judul, nomor berikutnya, filter ============ --}}
         <div class="bg-white shadow-sm rounded-2xl border border-gray-100 p-4 sm:p-6 space-y-5">
 
@@ -366,6 +355,64 @@
                                     </div>
                                 @endforeach
                             </div>
+
+                            {{-- Nominatif memo mandiri: badge jumlah, tombol tambah, ikon kunci --}}
+                            @foreach ($g['items'] as $mNom)
+                                @if (!empty($mNom['mandiri']) && !empty($mNom['perlu_nominatif']))
+                                    @php
+                                        $jmlNom = (int) ($mNom['nominatif_count'] ?? 0);
+                                        $nomTerkunci = !in_array($mNom['tahap'] ?? 'draft', ['draft', 'dikembalikan'], true);
+                                        $entryId = (int) substr($mNom['id'], 6); // 'entry-' = 6 huruf
+                                    @endphp
+                                    <div class="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2.5">
+                                        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+                                            <span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Nominatif</span>
+
+                                            @if ($jmlNom > 0)
+                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                                    {{ $jmlNom }} nominatif
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                                                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                                    Belum ada nominatif
+                                                </span>
+                                            @endif
+
+                                            @if (!empty($mNom['bisa_tambah_nominatif']))
+                                                <a href="{{ route('nominatif.pilih', ['memo' => $entryId]) }}"
+                                                    class="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-500 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                        aria-hidden="true">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
+                                                            d="M12 4v16m8-8H4" />
+                                                    </svg>
+                                                    Nominatif
+                                                </a>
+                                            @endif
+
+                                            @if ($nomTerkunci)
+                                                <span class="inline-flex items-center gap-1 text-[11px] text-gray-500"
+                                                    title="Nominatif terkunci selama memo di Keuangan. Terbuka lagi kalau memo dikembalikan.">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                                                        viewBox="0 0 24 24" aria-hidden="true">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                                            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                                    </svg>
+                                                    Terkunci
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        @if ($jmlNom === 0 && !$nomTerkunci)
+                                            <p class="mt-1.5 text-[11px] text-amber-700">
+                                                Memo ini belum bisa dikirim ke Keuangan sebelum ada minimal satu nominatif.
+                                            </p>
+                                        @endif
+                                    </div>
+                                @endif
+                            @endforeach
 
                             @unless ($g['bisa_hapus'])
                                 <p class="mt-3 text-[11px] text-gray-400 border border-dashed border-gray-200 bg-gray-50/60 rounded-lg px-3 py-2">

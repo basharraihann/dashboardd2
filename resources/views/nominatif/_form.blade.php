@@ -1,6 +1,7 @@
 {{--
 Form bersama untuk Buat & Edit Nominatif Honorarium Narasumber.
 Variabel: $action, $method, $submitLabel, $nominatif (null saat buat), $pegawaiList, $kabKotaMap
+Opsional (dari memo): $memo, $prefill
 
 Catatan: dropdown searchable ditangani resources/js/searchable.js,
 cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut data-lokasi-*).
@@ -8,6 +9,22 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
 @php
     $nominatif = $nominatif ?? null;
     $kabKotaMap = $kabKotaMap ?? [];
+
+    // ----- Konteks memo (opsional) -----
+    $isEdit = $nominatif !== null;
+    $memo = $memo ?? ($nominatif?->memo ?? null);
+    $prefill = $prefill ?? [];
+
+    // old() > data nominatif (edit) > prefill dari memo > default
+    $awal = fn(string $field, $default = null) => old($field, $nominatif->{$field} ?? ($prefill[$field] ?? $default));
+
+    $tglPrefill = $prefill['tanggal'] ?? null;
+    $tanggalAwal = old(
+        'tanggal',
+        $nominatif?->tanggal
+        ? $nominatif->tanggal->toDateString()
+        : ($tglPrefill ? \Carbon\Carbon::parse($tglPrefill)->toDateString() : now()->toDateString()),
+    );
 
     $ppkList = $pegawaiList->filter(fn($p) => str_contains($p->role_penandatangan ?? '', 'PPK'))->values();
     if ($ppkList->isEmpty()) {
@@ -94,10 +111,37 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
             </div>
         @endif
 
+        {{-- Banner konteks memo --}}
+        @if ($memo)
+            <div
+                class="flex gap-2.5 bg-blue-50/70 border border-blue-100 text-blue-700 text-xs sm:text-sm px-4 py-3 rounded-xl mb-5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                </svg>
+                <p>
+                    Nominatif untuk memo <span class="font-mono font-semibold">{{ $memo->nomor_memo }}</span>
+                    @if ($memo->uraian_kegiatan)
+                        &mdash; {{ $memo->uraian_kegiatan }}
+                    @endif
+                    @unless ($isEdit)
+                        <span class="block text-blue-600/80 mt-0.5">Isian di bawah terisi otomatis dari memo, boleh
+                            diubah.</span>
+                    @endunless
+                </p>
+            </div>
+        @endif
+
         <form action="{{ $action }}" method="POST" class="space-y-5" x-data="nominatifForm(@js($formConfig))">
             @csrf
             @if ($method !== 'POST')
                 @method($method)
+            @endif
+
+            {{-- Hanya saat buat. Saat edit, memo tidak boleh dipindah. --}}
+            @if ($memo && !$isEdit)
+                <input type="hidden" name="memo_entry_id" value="{{ $memo->id }}">
             @endif
 
             {{-- ===== Section: Informasi Kegiatan ===== --}}
@@ -120,16 +164,13 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="sm:col-span-2">
                         <label class="{{ $labelClass }}">Nama Kegiatan <span class="text-red-400">*</span></label>
-                        <input type="text" name="uraian_kegiatan"
-                            value="{{ old('uraian_kegiatan', $nominatif->uraian_kegiatan ?? '') }}" required
+                        <input type="text" name="uraian_kegiatan" value="{{ $awal('uraian_kegiatan', '') }}" required
                             placeholder="Rapat Monitoring dan Evaluasi Nilai Ekonomi Karbon dan Gas Rumah Kaca"
                             class="{{ $inputClass }}">
                     </div>
                     <div>
                         <label class="{{ $labelClass }}">Tanggal <span class="text-red-400">*</span></label>
-                        <input type="date" name="tanggal"
-                            value="{{ old('tanggal', optional($nominatif?->tanggal)->toDateString() ?? now()->toDateString()) }}"
-                            required class="{{ $inputClass }}">
+                        <input type="date" name="tanggal" value="{{ $tanggalAwal }}" required class="{{ $inputClass }}">
                     </div>
                 </div>
 
@@ -193,9 +234,9 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
                         <div class="relative">
                             <select name="ppk_id" required data-placeholder="Cari PPK..."
                                 class="js-searchable {{ $selectClass }}">
-                                <option value="" disabled {{ old('ppk_id', $nominatif->ppk_id ?? '') ? '' : 'selected' }}>— Pilih —</option>
+                                <option value="" disabled {{ $awal('ppk_id') ? '' : 'selected' }}>— Pilih —</option>
                                 @forelse ($ppkList as $p)
-                                    <option value="{{ $p->id }}" @selected(old('ppk_id', $nominatif->ppk_id ?? null) == $p->id)>
+                                    <option value="{{ $p->id }}" @selected($awal('ppk_id') == $p->id)>
                                         {{ $p->nama_gelar ?? $p->nama }}
                                     </option>
                                 @empty
@@ -210,9 +251,10 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
                         <div class="relative">
                             <select name="bendahara_id" required data-placeholder="Cari Bendahara..."
                                 class="js-searchable {{ $selectClass }}">
-                                <option value="" disabled {{ old('bendahara_id', $nominatif->bendahara_id ?? '') ? '' : 'selected' }}>— Pilih —</option>
+                                <option value="" disabled {{ $awal('bendahara_id') ? '' : 'selected' }}>— Pilih —
+                                </option>
                                 @forelse ($bendaharaList as $p)
-                                    <option value="{{ $p->id }}" @selected(old('bendahara_id', $nominatif->bendahara_id ?? null) == $p->id)>
+                                    <option value="{{ $p->id }}" @selected($awal('bendahara_id') == $p->id)>
                                         {{ $p->nama_gelar ?? $p->nama }}
                                     </option>
                                 @empty
@@ -227,9 +269,9 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
                         <div class="relative">
                             <select name="pic_id" required data-placeholder="Cari PIC..."
                                 class="js-searchable {{ $selectClass }}">
-                                <option value="" disabled {{ old('pic_id', $nominatif->pic_id ?? '') ? '' : 'selected' }}>— Pilih —</option>
+                                <option value="" disabled {{ $awal('pic_id') ? '' : 'selected' }}>— Pilih —</option>
                                 @foreach ($pegawaiList as $p)
-                                    <option value="{{ $p->id }}" @selected(old('pic_id', $nominatif->pic_id ?? null) == $p->id)>
+                                    <option value="{{ $p->id }}" @selected($awal('pic_id') == $p->id)>
                                         {{ $p->nama_gelar ?? $p->nama }}
                                     </option>
                                 @endforeach
@@ -428,7 +470,7 @@ cascading Provinsi -> Kab/Kota ditangani resources/js/lokasi.js (lewat atribut d
             {{-- Actions --}}
             <div
                 class="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-5 sm:px-7 py-4">
-                <a href="{{ route('nominatif.index') }}"
+                <a href="{{ $memo && !$isEdit ? route('memo.index') : route('nominatif.index') }}"
                     class="w-full sm:w-auto text-center text-sm text-gray-400 hover:text-gray-600 transition">
                     &larr; Batal
                 </a>

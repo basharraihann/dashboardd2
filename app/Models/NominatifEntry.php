@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToUnit;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\MemoTahapService;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class NominatifEntry extends Model
 {
@@ -13,17 +15,17 @@ class NominatifEntry extends Model
 
     protected $fillable = [
         'unit_id',
+        'memo_entry_id',
         'uraian_kegiatan',
         'tanggal',
         'provinsi',
         'kota',
         'ppk_id',
         'bendahara_id',
-        'jenis_detail',          // baru
-        'penanggung_jawab_id',   // baru
-        'pic_id',                // baru
+        'jenis_detail',
+        'penanggung_jawab_id',
+        'pic_id',
     ];
-
     protected $casts = [
         'tanggal' => 'date',
     ];
@@ -101,4 +103,27 @@ class NominatifEntry extends Model
     {
         return $this->totalBruto() - $this->totalPajak();
     }
+
+    public function memo(): BelongsTo
+    {
+        return $this->belongsTo(MemoEntry::class, 'memo_entry_id');
+    }
+
+    // Terkunci kalau memo sudah keluar dari draft/dikembalikan (sudah dikirim ke Keuangan).
+// Nominatif tanpa memo (mandiri atau lama) tidak pernah terkunci.
+    public function terkunci(): bool
+    {
+        $memo = $this->memo;
+
+        if (!$memo) {
+            return false;
+        }
+
+        $status = $memo->status_anggaran ?? 'outstanding';
+        $kunci = 'entry-' . $memo->id;
+        $tahap = MemoTahapService::petaTahap([$kunci => $status])[$kunci] ?? null;
+
+        return !($status === 'outstanding' && in_array($tahap, ['draft', 'dikembalikan'], true));
+    }
+
 }

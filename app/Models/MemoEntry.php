@@ -57,6 +57,7 @@ class MemoEntry extends Model
 
     protected $casts = [
         'tanggal_memo' => 'date',
+        'perlu_nominatif' => 'boolean',
     ];
 
     /**
@@ -151,5 +152,27 @@ class MemoEntry extends Model
     public function petugasVerifikasi()
     {
         return $this->belongsTo(Pegawai::class, 'petugas_verifikasi_id');
+    }
+
+    public function nominatifs()
+    {
+        return $this->hasMany(NominatifEntry::class, 'memo_entry_id');
+    }
+
+    public function bolehDiubah(): bool
+    {
+        return ($this->status_anggaran ?? 'outstanding') === 'outstanding'
+            && \App\Services\MemoTahapService::bisaDiedit("entry-{$this->id}");
+    }
+
+    public function memo()
+    {
+        return $this->belongsTo(MemoEntry::class, 'memo_entry_id')->withoutGlobalScope('unit');
+    }
+
+    public function terkunci(): bool
+    {
+        return $this->memo_entry_id !== null
+            && !($this->memo?->bolehDiubah() ?? false);
     }
 }

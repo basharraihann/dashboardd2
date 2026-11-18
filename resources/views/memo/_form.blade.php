@@ -222,6 +222,88 @@ Mau ubah form memo? Cukup ubah file ini.
                         placeholder="Keperluan memo ini"
                         class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
                 </div>
+
+                <!-- Perlu Nominatif -->
+                @php
+                    $perluNominatif = (bool) old('perlu_nominatif', $isEdit ? $memo->perlu_nominatif : false);
+                    $jumlahNominatif = $isEdit ? $memo->nominatifs()->count() : 0;
+                    $kunciCentang = $jumlahNominatif > 0;
+                    $jenisNominatif = old('jenis_nominatif');
+                @endphp
+                <div x-data="{ perlu: @js($perluNominatif || $kunciCentang), jenis: @js($jenisNominatif) }"
+                    class="space-y-3">
+                    {{-- Kalau sudah ada nominatif, checkbox dikunci aktif dan nilai 1 dikirim lewat hidden.
+                    (Checkbox disabled tidak ikut terkirim, jadi hidden ini yang jadi sumber nilai.) --}}
+                    <input type="hidden" name="perlu_nominatif" value="{{ $kunciCentang ? 1 : 0 }}">
+                    <label @class([
+                        'flex items-start gap-3 border border-gray-200 rounded-xl px-3.5 py-3 transition',
+                        'cursor-pointer hover:bg-gray-50' => !$kunciCentang,
+                        'bg-gray-50 cursor-not-allowed' => $kunciCentang,
+                    ])>
+                        <input type="checkbox" name="perlu_nominatif" value="1" x-model="perlu" @disabled($kunciCentang)
+                            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-200">
+                        <span>
+                            <span class="block text-sm font-medium text-gray-700">Memo ini perlu nominatif</span>
+                            <span class="block text-xs text-gray-400 mt-0.5">
+                                Kalau dicentang, memo baru bisa dikirim ke Keuangan setelah minimal satu nominatif
+                                dibuat.
+                            </span>
+                            @if ($kunciCentang)
+                                <span class="block text-xs text-amber-600 mt-1">
+                                    Sudah ada {{ $jumlahNominatif }} nominatif, centang ini tidak bisa dilepas.
+                                </span>
+                            @endif
+                        </span>
+                    </label>
+                    @error('perlu_nominatif')
+                        <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                    @enderror
+
+                    {{-- Pilihan jenis: muncul setelah dicentang. Radio disabled saat disembunyikan,
+                    jadi tidak ikut terkirim. Disembunyikan total kalau nominatif sudah ada. --}}
+                    @unless ($kunciCentang)
+                        <div x-show="perlu" x-cloak x-transition.opacity class="pl-1">
+                            <p class="text-xs font-semibold text-gray-500 mb-2 tracking-wide uppercase">
+                                Mau buat nominatif apa?
+                            </p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label
+                                    class="flex items-start gap-3 border rounded-xl px-3.5 py-3 cursor-pointer transition"
+                                    :class="jenis === 'honorarium' ? 'border-blue-400 bg-blue-50/60 ring-2 ring-blue-100' :
+                                            'border-gray-200 hover:bg-gray-50'">
+                                    <input type="radio" name="jenis_nominatif" value="honorarium" x-model="jenis"
+                                        :disabled="!perlu"
+                                        class="mt-0.5 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-200">
+                                    <span>
+                                        <span class="block text-sm font-medium text-gray-700">Honorarium</span>
+                                        <span class="block text-xs text-gray-400 mt-0.5">Daftar narasumber, honor per
+                                            OJ, pajak per orang.</span>
+                                    </span>
+                                </label>
+
+                                <label
+                                    class="flex items-start gap-3 border rounded-xl px-3.5 py-3 cursor-pointer transition"
+                                    :class="jenis === 'custom' ? 'border-blue-400 bg-blue-50/60 ring-2 ring-blue-100' :
+                                            'border-gray-200 hover:bg-gray-50'">
+                                    <input type="radio" name="jenis_nominatif" value="custom" x-model="jenis"
+                                        :disabled="!perlu"
+                                        class="mt-0.5 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-200">
+                                    <span>
+                                        <span class="block text-sm font-medium text-gray-700">Custom</span>
+                                        <span class="block text-xs text-gray-400 mt-0.5">Item bebas dengan PPN, PPh 22,
+                                            dan PPh 23.</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">
+                                Belum yakin? Biarkan kosong, nanti ditanya lagi setelah memo disimpan.
+                            </p>
+                            @error('jenis_nominatif')
+                                <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    @endunless
+                </div>
             </div>
         </div>
 
@@ -323,7 +405,8 @@ Mau ubah form memo? Cukup ubah file ini.
                         <div class="relative">
                             <select name="penanggung_jawab_id" required data-placeholder="Cari Penanggung Jawab..."
                                 class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                                <option value="" disabled {{ $sel('penanggung_jawab_id') ? '' : 'selected' }}>— Pilih —
+                                <option value="" disabled {{ $sel('penanggung_jawab_id') ? '' : 'selected' }}>—
+                                    Pilih —
                                 </option>
                                 @forelse ($pjList as $p)
                                     <option value="{{ $p->id }}" data-nama="{{ $p->nama }}" data-nip="{{ $p->nip }}"
@@ -348,7 +431,8 @@ Mau ubah form memo? Cukup ubah file ini.
                         <div class="relative">
                             <select name="petugas_verifikasi_id" required data-placeholder="Cari Petugas Verifikasi..."
                                 class="js-searchable w-full appearance-none bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition">
-                                <option value="" disabled {{ $sel('petugas_verifikasi_id') ? '' : 'selected' }}>— Pilih
+                                <option value="" disabled {{ $sel('petugas_verifikasi_id') ? '' : 'selected' }}>—
+                                    Pilih
                                     —
                                 </option>
                                 @forelse ($petugasVerifikasiList as $p)
@@ -398,7 +482,8 @@ Mau ubah form memo? Cukup ubah file ini.
                         {{-- Select asli disembunyikan (TANPA js-searchable). Tetap jadi sumber nilai
                         supaya skrip sinkron MAK / preview uraian / kartu sisa tetap jalan. --}}
                         <select id="mak-select" class="hidden" tabindex="-1" aria-hidden="true">
-                            <option value="" data-label="" {{ !$currentMak ? 'selected' : '' }}>— Pilih dari daftar MAK —
+                            <option value="" data-label="" {{ !$currentMak ? 'selected' : '' }}>— Pilih dari daftar MAK
+                                —
                             </option>
                             @foreach ($makGroups as $payung => $items)
                                 @foreach ($items as $opt)
@@ -460,7 +545,8 @@ Mau ubah form memo? Cukup ubah file ini.
                                         <div class="ml-4 my-1 border-l border-gray-200">
                                             @foreach ($items as $opt)
                                                 @php
-                                                    $efektif = $makSisaEfektif[$opt->mak] ?? (int) $opt->sisa;                                                    // Edit: nominal memo ini sudah masuk realisasi FA, kembalikan ke sisa
+                                                    $efektif = $makSisaEfektif[$opt->mak] ?? (int) $opt->sisa;
+                                                    // Edit: nominal memo ini sudah masuk realisasi FA, kembalikan ke sisa
                                                     if ($memoSudahDiFa && $opt->mak === $memo->mak) {
                                                         $efektif += (int) round((float) $memo->nominal);
                                                     }

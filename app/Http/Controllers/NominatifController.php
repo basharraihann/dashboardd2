@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\MemoUntukNominatif;
 use App\Models\Agenda;
 use App\Models\KabupatenKota;
 use App\Models\NominatifEntry;
 use App\Models\Pegawai;
+use App\Services\MemoTahapService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -13,13 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class NominatifController extends Controller
 {
-    /**
-     * Daftar nominatif, gabungan dua sumber:
-     * - agenda: nominatif perjalanan dinas (PNS / Non PNS), hanya yang ada pesertanya
-     * - nominatif_entries: Daftar Honorarium Narasumber yang dibuat mandiri tanpa agenda
-     *
-     * Ditampilkan satu baris per agenda (nomi PNS dan Non PNS digabung).
-     */
+    use MemoUntukNominatif;
+
     public function index()
     {
         $rows = collect();
@@ -62,9 +59,21 @@ class NominatifController extends Controller
             }
         }
 
-        foreach (NominatifEntry::with(['peserta', 'items', 'pic'])->get() as $entry) {
+        $entries = NominatifEntry::with(['peserta', 'items', 'pic', 'memo'])->get();
+
+        $tahapMemo = MemoTahapService::petaTahap(
+            $entries->filter(fn($e) => $e->memo)
+                ->mapWithKeys(fn($e) => ['entry-' . $e->memo->id => $e->memo->status_anggaran ?? 'outstanding'])
+                ->all()
+        );
+
+        foreach ($entries as $entry) {
             $custom = $entry->jenis_detail === 'custom';
             $tujuan = collect([$entry->kota ?? null, $entry->provinsi ?? null])->filter()->implode(', ');
+
+            $terkunci = $entry->memo
+                && !(($entry->memo->status_anggaran ?? 'outstanding') === 'outstanding'
+                    && in_array($tahapMemo['entry-' . $entry->memo->id] ?? null, ['draft', 'dikembalikan'], true));
 
             $rows->push([
                 'id' => 'entry-' . $entry->id,
@@ -79,8 +88,10 @@ class NominatifController extends Controller
                 'jumlah_peserta' => $custom ? $entry->items->count() : $entry->peserta->count(),
                 'total' => $custom ? $entry->totalAkhir() : $entry->totalBruto(),
                 'pdf_url' => $custom ? route('nominatif.custom.pdf', $entry->id) : route('nominatif.pdf', $entry->id),
-                'edit_url' => $custom ? route('nominatif.custom.edit', $entry->id) : route('nominatif.edit', $entry->id),
-                'delete_url' => route('nominatif.destroy', $entry->id),
+                'edit_url' => $terkunci ? null : ($custom ? route('nominatif.custom.edit', $entry->id) : route('nominatif.edit', $entry->id)),
+                'delete_url' => $terkunci ? null : route('nominatif.destroy', $entry->id),
+                'memo_nomor' => $entry->memo?->nomor_memo,
+                'terkunci' => (bool) $terkunci,
             ]);
         }
 
@@ -97,6 +108,7 @@ class NominatifController extends Controller
                     'uraian_kegiatan' => $first['uraian_kegiatan'],
                     'tujuan' => $first['tujuan'],
                     'tanggal' => $first['tanggal'],
+                    'memo_nomor' => $first['memo_nomor'] ?? null,
                     'pic' => $items->pluck('pic')->filter()->first() ?: '-',
                     // PNS di atas, Non PNS di bawah
                     'items' => $items
@@ -110,32 +122,46 @@ class NominatifController extends Controller
         return view('nominatif.index', compact('groups'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $memo = $this->memoUntukNominatif($request->query('memo'));
+
         $kabKotaMap = KabupatenKota::orderBy('nama')->get()->groupBy('provinsi')->map(fn($group) => $group->pluck('nama')->values());
 
         return view('nominatif.create', [
             'nominatif' => null,
             'pegawaiList' => Pegawai::orderBy('nama')->get(),
             'kabKotaMap' => $kabKotaMap,
+            'memo' => $memo,
+            'prefill' => $this->prefillDariMemo($memo),
         ]);
     }
 
     public function store(Request $request)
     {
         $data = $this->validasi($request);
+        $memo = $this->memoUntukNominatif($data['memo_entry_id'] ?? null);
 
-        DB::transaction(function () use ($data) {
-            $entry = NominatifEntry::create(Arr::except($data, ['peserta']));
+        $atribut = Arr::except($data, ['peserta', 'memo_entry_id']);
+        if ($memo) {
+            // unit_id disalin eksplisit: admin tidak diisi otomatis oleh BelongsToUnit.
+            $atribut['memo_entry_id'] = $memo->id;
+            $atribut['unit_id'] = $memo->unit_id;
+            $atribut['penanggung_jawab_id'] = $memo->penanggung_jawab_id;
+        }
+
+        DB::transaction(function () use ($atribut, $data) {
+            $entry = NominatifEntry::create($atribut);
             $this->simpanPeserta($entry, $data['peserta']);
         });
 
-        return redirect()->route('nominatif.index')
+        return redirect()->route($memo ? 'memo.index' : 'nominatif.index')
             ->with('success', 'Nominatif berhasil dibuat.');
     }
 
     public function edit(NominatifEntry $nominatif)
     {
+        abort_if($nominatif->terkunci(), 403, 'Nominatif terkunci karena memo sudah dikirim ke Keuangan.');
         $nominatif->load('peserta');
 
         $kabKotaMap = KabupatenKota::orderBy('nama')->get()->groupBy('provinsi')->map(fn($group) => $group->pluck('nama')->values());
@@ -149,10 +175,12 @@ class NominatifController extends Controller
 
     public function update(Request $request, NominatifEntry $nominatif)
     {
+        abort_if($nominatif->terkunci(), 403, 'Nominatif terkunci karena memo sudah dikirim ke Keuangan.');
+
         $data = $this->validasi($request);
 
         DB::transaction(function () use ($data, $nominatif) {
-            $nominatif->update(Arr::except($data, ['peserta']));
+            $nominatif->update(Arr::except($data, ['peserta', 'memo_entry_id']));
             $this->simpanPeserta($nominatif, $data['peserta']);
         });
 
@@ -162,6 +190,8 @@ class NominatifController extends Controller
 
     public function destroy(NominatifEntry $nominatif)
     {
+        abort_if($nominatif->terkunci(), 403, 'Nominatif terkunci karena memo sudah dikirim ke Keuangan.');
+
         $nominatif->delete(); // baris narasumber ikut terhapus (cascade)
 
         return redirect()->route('nominatif.index')
@@ -197,6 +227,7 @@ class NominatifController extends Controller
             'kota' => ['required', 'string', 'max:100'],
             'bendahara_id' => 'required|exists:pegawai,id',
             'pic_id' => 'required|exists:pegawai,id',
+            'memo_entry_id' => 'nullable|integer',
             'peserta' => 'required|array|min:1',
             'peserta.*.nama' => 'required|string|max:255',
             'peserta.*.npwp' => 'nullable|string|max:50',
@@ -252,5 +283,14 @@ class NominatifController extends Controller
         }
 
         return $awal . ' – ' . $selesai->translatedFormat('d M Y');
+    }
+
+    public function pilih(Request $request)
+    {
+        $memo = $this->memoUntukNominatif($request->query('memo'));
+
+        abort_if($memo === null, 404);
+
+        return view('nominatif.pilih', ['memo' => $memo]);
     }
 }

@@ -1,0 +1,122 @@
+Folder PATH listing
+Volume serial number is 40BB-4BA5
+C:\LARAGON\WWW\DASHBOARDD2\RESOURCES\VIEWS
+|   dashboard.blade.php
+|   welcome.blade.php
+|   
++---agendas
+|   |   anggaran.blade.php
+|   |   create.blade.php
+|   |   dokumen.blade.php
+|   |   edit.blade.php
+|   |   index.blade.php
+|   |   memorandum.blade.php
+|   |   peserta.blade.php
+|   |   show.blade.php
+|   |   _form.blade.php
+|   |   
+|   \---partials
+|           administrasi-anggaran.blade.php
+|           komponen-biaya-selector.blade.php
+|           sisa-mak-card.blade.php
+|           stepper.blade.php
+|           
++---anggaran
+|       export.blade.php
+|       index.blade.php
+|       pemetaan.blade.php
+|       upload.blade.php
+|       
++---auth
+|       confirm-password.blade.php
+|       forgot-password.blade.php
+|       login.blade.php
+|       register.blade.php
+|       reset-password.blade.php
+|       verify-email.blade.php
+|       
++---components
+|       aksi-button.blade.php
+|       application-logo.blade.php
+|       auth-session-status.blade.php
+|       city-skyline.blade.php
+|       cloud-layers.blade.php
+|       danger-button.blade.php
+|       delete-button.blade.php
+|       dropdown-link.blade.php
+|       dropdown.blade.php
+|       input-error.blade.php
+|       input-label.blade.php
+|       modal.blade.php
+|       nav-link.blade.php
+|       primary-button.blade.php
+|       responsive-nav-link.blade.php
+|       secondary-button.blade.php
+|       text-input.blade.php
+|       
++---layouts
+|   |   app.blade.php
+|   |   bottom-nav.blade.php
+|   |   guest.blade.php
+|   |   navigation.blade.php
+|   |   
+|   \---partials
+|           pwa-head.blade.php
+|           pwa-scripts.blade.php
+|           
++---mak-options
+|       index.blade.php
+|       _fields.blade.php
+|       
++---memo
+|       create.blade.php
+|       edit.blade.php
+|       index.blade.php
+|       _form.blade.php
+|       _preview.blade.php
+|       _sisa-mak.blade.php
+|       
++---monitoring
+|       index.blade.php
+|       
++---nominatif
+|   |   create.blade.php
+|   |   edit.blade.php
+|   |   index.blade.php
+|   |   _form.blade.php
+|   |   
+|   \---custom
+|           custom-form.blade.php
+|           _preview-custom.blade.php
+|           
++---pdf
+|       honorarium-narasumber.blade.php
+|       memorandum.blade.php
+|       merged.blade.php
+|       nominatif-custom.blade.php
+|       nominatif-jakarta.blade.php
+|       nominatif.blade.php
+|       pengeluaran-riil.blade.php
+|       rincian-biaya.blade.php
+|       spd.blade.php
+|       
++---pegawais
+|       create.blade.php
+|       edit.blade.php
+|       index.blade.php
+|       _form.blade.php
+|       _table.blade.php
+|       
++---profile
+|   |   edit.blade.php
+|   |   
+|   \---partials
+|           delete-user-form.blade.php
+|           update-password-form.blade.php
+|           update-profile-information-form.blade.php
+|           
+\---users
+        create.blade.php
+        edit.blade.php
+        index.blade.php
+        

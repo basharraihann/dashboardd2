@@ -109,6 +109,7 @@ class MemoController extends Controller
         $entries = MemoEntry::query()
             ->when($lintasUnit, fn($q) => $q->withoutGlobalScope('unit'))
             ->with('pic')
+            ->withCount(['nominatifs' => fn($q) => $q->withoutGlobalScope('unit')])
             ->get();
 
         foreach ($entries as $entry) {
@@ -135,6 +136,8 @@ class MemoController extends Controller
                 'editable' => ($entry->status_anggaran ?? 'outstanding') === 'outstanding',
                 'edit_url' => route('memo.edit', $entry->id),
                 'pdf_url' => route('memo.pdf', $entry->id),
+                'perlu_nominatif' => (bool) $entry->perlu_nominatif,
+                'nominatif_count' => (int) $entry->nominatifs_count,
             ]);
         }
 
@@ -172,6 +175,10 @@ class MemoController extends Controller
             if (!empty($m['mandiri'])) {
                 $m['editable'] = $milik && $m['status_anggaran'] === 'outstanding' && $bisaDiedit;
             }
+
+            $m['bisa_tambah_nominatif'] = !empty($m['mandiri'])
+                && !empty($m['perlu_nominatif'])
+                && $m['editable'];
             $m['bisa_kirim'] = $milik && $bisaDiedit && $m['status_anggaran'] === 'outstanding';
             $m['bisa_ajukan'] = $milik && $p === null
                 && in_array($m['tahap'], ['dikirim', 'lolos_spk', 'sakti', 'otp_ppk'], true);
@@ -254,9 +261,13 @@ class MemoController extends Controller
 
         $validated = $request->validate(self::rules());
 
+        // jenis_nominatif cuma penentu redirect, bukan kolom di tabel memo.
+        $jenisNominatif = $validated['jenis_nominatif'] ?? null;
+        unset($validated['jenis_nominatif']);
+
         $validated['nomor_urut'] = NomorMemoService::ekstrakUrutan($validated['nomor_memo']) ?? 0;
 
-        DB::transaction(function () use ($validated) {
+        $memo = DB::transaction(function () use ($validated) {
             // Kunci baris MAK: request bersamaan untuk MAK yang sama antre di sini,
             // jadi dua unit tidak bisa sama-sama lolos dari sisa yang sama.
             MakOption::where('mak', $validated['mak'])->lockForUpdate()->first();
@@ -270,13 +281,25 @@ class MemoController extends Controller
             }
 
             // status_anggaran tidak diisi di sini: default kolomnya 'outstanding'.
-            MemoEntry::create($validated);
+            return MemoEntry::create($validated);
         });
+
+        // Memo yang ditandai perlu nominatif langsung diarahkan ke form nominatif.
+        if ($memo->perlu_nominatif) {
+            $tujuan = match ($jenisNominatif) {
+                'honorarium' => 'nominatif.create',
+                'custom' => 'nominatif.custom.create',
+                default => 'nominatif.pilih', // belum memilih: tanya di halaman pilihan
+            };
+
+            return redirect()
+                ->route($tujuan, ['memo' => $memo->id])
+                ->with('success', 'Nomor memo berhasil dibuat, lanjut isi nominatif.');
+        }
 
         return redirect()->route('memo.index')
             ->with('success', 'Nomor memo berhasil dibuat.');
     }
-
     /**
      * Form edit memo mandiri. Hanya berlaku buat memo_entries — nomor memo yang
      * nempel ke agenda diedit lewat halaman agenda-nya sendiri.
@@ -316,6 +339,10 @@ class MemoController extends Controller
 
         $validated = $request->validate(self::rules());
 
+        // jenis_nominatif cuma penentu redirect, bukan kolom di tabel memo.
+        $jenisNominatif = $validated['jenis_nominatif'] ?? null;
+        unset($validated['jenis_nominatif']);
+
         $validated['nomor_urut'] = NomorMemoService::ekstrakUrutan($validated['nomor_memo']) ?? 0;
 
         DB::transaction(function () use ($validated, $memo) {
@@ -329,8 +356,28 @@ class MemoController extends Controller
                 throw ValidationException::withMessages(['nominal' => $pesan]);
             }
 
+            // Penanda nggak boleh dimatikan kalau nominatifnya sudah ada.
+            if (empty($validated['perlu_nominatif']) && $memo->nominatifs()->exists()) {
+                throw ValidationException::withMessages([
+                    'perlu_nominatif' => 'Memo ini sudah punya nominatif, hapus nominatifnya dulu kalau penanda mau dilepas.',
+                ]);
+            }
+
             $memo->update($validated);
         });
+
+        // Memo perlu nominatif tapi belum punya satu pun: lanjut ke form nominatif.
+        if ($memo->perlu_nominatif && !$memo->nominatifs()->exists()) {
+            $tujuan = match ($jenisNominatif) {
+                'honorarium' => 'nominatif.create',
+                'custom' => 'nominatif.custom.create',
+                default => 'nominatif.pilih',
+            };
+
+            return redirect()
+                ->route($tujuan, ['memo' => $memo->id])
+                ->with('success', 'Nomor memo berhasil diperbarui, lanjut isi nominatif.');
+        }
 
         return redirect()->route('memo.index')
             ->with('success', 'Nomor memo berhasil diperbarui.');
@@ -633,6 +680,8 @@ class MemoController extends Controller
             'nominal' => 'required|numeric|min:0',
             'keterangan' => 'nullable|string',
             'tipe_pembayaran' => ['required', 'string', 'max:20'],
+            'perlu_nominatif' => ['nullable', 'boolean'],
+            'jenis_nominatif' => ['nullable', 'in:honorarium,custom'],
         ];
     }
 }

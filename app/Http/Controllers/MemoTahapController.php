@@ -134,5 +134,8 @@ class MemoTahapController extends Controller
                 'nomor_memo' => 'Nomor memo ini bentrok dengan memo lain. Perbaiki nomor sebelum mengirim.',
             ]);
         }
+        if ($entry->perlu_nominatif && !$entry->nominatifs()->withoutGlobalScope('unit')->exists()) {
+            throw new \DomainException('Memo ini ditandai perlu nominatif. Buat minimal satu nominatif sebelum dikirim ke Keuangan.');
+        }
     }
 }

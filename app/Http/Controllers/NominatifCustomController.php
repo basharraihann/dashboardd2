@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\MemoUntukNominatif;
 use App\Models\NominatifEntry;
 use App\Models\Pegawai;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -11,34 +12,48 @@ use Illuminate\Support\Facades\DB;
 
 class NominatifCustomController extends Controller
 {
-    public function create()
+    use MemoUntukNominatif;
+
+    public function create(Request $request)
     {
+        $memo = $this->memoUntukNominatif($request->query('memo'));
+
         return view('nominatif.custom.custom-form', [
             'nominatif' => null,
             'pegawaiList' => Pegawai::orderBy('nama')->get(),
             'action' => route('nominatif.custom.store'),
             'method' => 'POST',
             'submitLabel' => 'Simpan Nominatif',
+            'memo' => $memo,
+            'prefill' => $this->prefillDariMemo($memo),
         ]);
     }
 
     public function store(Request $request)
     {
         $data = $this->validasi($request);
+        $memo = $this->memoUntukNominatif($data['memo_entry_id'] ?? null);
 
-        DB::transaction(function () use ($data) {
-            $entry = NominatifEntry::create(
-                Arr::except($data, ['items']) + ['jenis_detail' => 'custom']
-            );
+        $atribut = Arr::except($data, ['items', 'memo_entry_id']) + ['jenis_detail' => 'custom'];
+        if ($memo) {
+            // unit_id disalin eksplisit: admin tidak diisi otomatis oleh BelongsToUnit.
+            $atribut['memo_entry_id'] = $memo->id;
+            $atribut['unit_id'] = $memo->unit_id;
+        }
+
+        DB::transaction(function () use ($atribut, $data) {
+            $entry = NominatifEntry::create($atribut);
             $this->simpanItems($entry, $data['items']);
         });
 
-        return redirect()->route('nominatif.index')->with('success', 'Nominatif berhasil dibuat.');
+        return redirect()->route($memo ? 'memo.index' : 'nominatif.index')
+            ->with('success', 'Nominatif berhasil dibuat.');
     }
 
     public function edit(NominatifEntry $nominatif)
     {
         abort_unless($nominatif->jenis_detail === 'custom', 404);
+        abort_if($nominatif->terkunci(), 403, 'Nominatif terkunci karena memo sudah dikirim ke Keuangan.');
         $nominatif->load('items');
 
         return view('nominatif.custom.custom-form', [
@@ -53,10 +68,11 @@ class NominatifCustomController extends Controller
     public function update(Request $request, NominatifEntry $nominatif)
     {
         abort_unless($nominatif->jenis_detail === 'custom', 404);
+        abort_if($nominatif->terkunci(), 403, 'Nominatif terkunci karena memo sudah dikirim ke Keuangan.');
         $data = $this->validasi($request);
 
         DB::transaction(function () use ($data, $nominatif) {
-            $nominatif->update(Arr::except($data, ['items']));
+            $nominatif->update(Arr::except($data, ['items', 'memo_entry_id']));
             $this->simpanItems($nominatif, $data['items']);
         });
 
@@ -82,6 +98,7 @@ class NominatifCustomController extends Controller
             'bendahara_id' => 'required|exists:pegawai,id',
             'penanggung_jawab_id' => 'required|exists:pegawai,id',
             'pic_id' => 'required|exists:pegawai,id',
+            'memo_entry_id' => 'nullable|integer',
             'items' => 'required|array|min:1',
             'items.*.uraian' => 'required|string',
             'items.*.harga' => 'required|string',
