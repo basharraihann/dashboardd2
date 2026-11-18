@@ -56,31 +56,22 @@
                 </div>
             @endif
 
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div class="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
-                    <div class="relative flex-1 w-full sm:max-w-sm">
-                        <svg class="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none"
-                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <input type="text" id="mak-search-input" placeholder="Cari MAK atau uraian..."
-                            autocomplete="off"
-                            class="w-full rounded-xl border border-gray-200 pl-10 pr-4 py-2.5 text-sm text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-                    </div>
-                    <label class="inline-flex items-center gap-2 text-sm text-gray-600 select-none">
-                        <input type="checkbox" id="mak-only-sisa"
-                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        Hanya yang masih ada sisa
-                    </label>
-                </div>
-                <button type="button" onclick="document.getElementById('modal-create').classList.remove('hidden')"
-                    class="inline-flex w-full sm:w-auto justify-center items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 shrink-0 transition">
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            {{-- Pencarian & filter (data hanya-baca, tidak ada tombol tambah) --}}
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+                <div class="relative flex-1 w-full sm:max-w-sm">
+                    <svg class="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    Nomor MAK Baru
-                </button>
+                    <input type="text" id="mak-search-input" placeholder="Cari MAK atau uraian..." autocomplete="off"
+                        class="w-full rounded-xl border border-gray-200 pl-10 pr-4 py-2.5 text-sm text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-600 select-none">
+                    <input type="checkbox" id="mak-only-sisa"
+                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    Hanya yang masih ada sisa
+                </label>
             </div>
 
             <div class="rounded-xl border border-gray-100 overflow-hidden">
@@ -94,7 +85,6 @@
                             <col class="hidden md:table-column w-36">
                             <col class="hidden lg:table-column w-36">
                             <col class="w-36">
-                            <col class="w-24">
                         </colgroup>
                         <thead>
                             <tr>
@@ -103,7 +93,6 @@
                                 <th class="hidden md:table-cell py-2 px-4 text-right font-semibold">Pagu (Rp)</th>
                                 <th class="hidden lg:table-cell py-2 px-4 text-right font-semibold">Realisasi (Rp)</th>
                                 <th class="py-2 px-4 text-right font-semibold">Sisa (Rp)</th>
-                                <th class="py-2 px-4 text-right font-semibold">Aksi</th>
                             </tr>
                         </thead>
                     </table>
@@ -132,7 +121,8 @@
                                 </div>
                                 <p class="text-sm text-gray-700 mt-1 font-medium">{{ $first->uraian_giat ?: '-' }}</p>
                                 <p class="text-xs text-gray-500">{{ $first->uraian_komponen ?: '-' }} —
-                                    {{ $first->uraian_akun_ap ?: '-' }}</p>
+                                    {{ $first->uraian_akun_ap ?: '-' }}
+                                </p>
                             </div>
 
                             <div class="overflow-x-auto">
@@ -143,7 +133,6 @@
                                         <col class="hidden md:table-column w-36">
                                         <col class="hidden lg:table-column w-36">
                                         <col class="w-36">
-                                        <col class="w-24">
                                     </colgroup>
                                     <tbody class="divide-y divide-gray-50">
                                         @foreach ($items as $item)
@@ -169,22 +158,6 @@
                                                 <td class="py-2.5 px-4 text-right tabular-nums {{ $sisaClass($item) }}">
                                                     {{ $rp($item->sisa) }}
                                                 </td>
-                                                <td class="py-2.5 px-4 text-right whitespace-nowrap">
-                                                    <button type="button"
-                                                        class="js-edit text-indigo-600 hover:text-indigo-800 font-medium text-xs mr-3"
-                                                        data-action="{{ route('mak-options.update', $item) }}"
-                                                        data-mak="{{ $item->mak }}" data-uraian_giat="{{ $item->uraian_giat }}"
-                                                        data-uraian_komponen="{{ $item->uraian_komponen }}"
-                                                        data-uraian_akun_ap="{{ $item->uraian_akun_ap }}"
-                                                        data-uraian_belanja="{{ $item->uraian_belanja }}"
-                                                        data-pagu="{{ $rp($item->pagu) }}"
-                                                        data-realisasi="{{ $rp($item->realisasi) }}"
-                                                        data-sisa="{{ $rp($item->sisa) }}"
-                                                        data-periode="{{ $item->periode }}">Edit</button>
-                                                    <x-delete-button :action="route('mak-options.destroy', $item)"
-                                                        :label="'nomor MAK ' . $item->mak" :id="'mak-option-' . $item->id"
-                                                        class="text-red-500 hover:text-red-700 font-medium text-xs" />
-                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -201,44 +174,6 @@
                 Tidak ada MAK yang cocok dengan pencarian.
             </p>
         </div>
-
-        <!-- Modal Edit (satu modal dipakai bersama semua baris) -->
-        <div id="modal-edit" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-            <div class="bg-white rounded-2xl p-5 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
-                <h3 class="font-semibold text-gray-900 mb-1">Edit Nomor MAK</h3>
-                <p id="edit-info" class="mb-4 text-xs text-gray-500"></p>
-                <form id="form-edit" method="POST" class="space-y-4">
-                    @csrf @method('PUT')
-                    <input type="hidden" name="_form" value="edit">
-                    @include('mak-options._fields')
-                    <div class="flex justify-end gap-2 mt-2">
-                        <button type="button" onclick="document.getElementById('modal-edit').classList.add('hidden')"
-                            class="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50">Batal</button>
-                        <button type="submit"
-                            class="px-4 py-2 rounded-xl text-sm text-white bg-indigo-600 hover:bg-indigo-700">Simpan</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Modal Create -->
-        <div id="modal-create" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-            <div class="bg-white rounded-2xl p-5 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
-                <h3 class="font-semibold text-gray-900 mb-4">Tambah Nomor MAK</h3>
-                <form action="{{ route('mak-options.store') }}" method="POST" class="space-y-4">
-                    @csrf
-                    <input type="hidden" name="_form" value="create">
-                    @include('mak-options._fields')
-                    <div class="flex justify-end gap-2 mt-2">
-                        <button type="button" onclick="document.getElementById('modal-create').classList.add('hidden')"
-                            class="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50">Batal</button>
-                        <button type="submit"
-                            class="px-4 py-2 rounded-xl text-sm text-white bg-indigo-600 hover:bg-indigo-700">Simpan</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
     </div>
 
     <script>
@@ -275,24 +210,6 @@
 
             input.addEventListener('input', apply);
             onlySisa.addEventListener('change', apply);
-
-            // Modal edit bersama: isi form dari atribut data pada tombol Edit
-            const modal = document.getElementById('modal-edit');
-            const form = document.getElementById('form-edit');
-            const info = document.getElementById('edit-info');
-            const fields = ['mak', 'uraian_giat', 'uraian_komponen', 'uraian_akun_ap', 'uraian_belanja'];
-
-            document.addEventListener('click', function (e) {
-                const btn = e.target.closest('.js-edit');
-                if (!btn) return;
-                form.action = btn.dataset.action;
-                fields.forEach(function (name) {
-                    if (form.elements[name]) form.elements[name].value = btn.dataset[name] || '';
-                });
-                info.textContent = 'Pagu Rp ' + btn.dataset.pagu + ' · Realisasi Rp ' + btn.dataset.realisasi +
-                    ' · Sisa Rp ' + btn.dataset.sisa + (btn.dataset.periode ? ' (periode ' + btn.dataset.periode + ')' : '');
-                modal.classList.remove('hidden');
-            });
         })();
     </script>
 </x-app-layout>
