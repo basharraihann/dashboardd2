@@ -138,6 +138,13 @@ class MemoController extends Controller
                 'pdf_url' => route('memo.pdf', $entry->id),
                 'perlu_nominatif' => (bool) $entry->perlu_nominatif,
                 'nominatif_count' => (int) $entry->nominatifs_count,
+                'nominatif_pdfs' => $entry->nominatifs->map(function ($n) {
+                    $custom = $n->jenis_detail === 'custom';
+                    return [
+                        'label' => $custom ? 'Custom' : 'Honorarium',
+                        'url' => route($custom ? 'nominatif.custom.pdf' : 'nominatif.pdf', $n),
+                    ];
+                })->values()->all(),
             ]);
         }
 

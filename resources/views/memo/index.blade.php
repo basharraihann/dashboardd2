@@ -277,428 +277,445 @@
 
         <div id="memo-list" class="space-y-3">
             @forelse ($groups as $g)
-                <article
-                    class="js-memo-item bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 memo-cols"
-                    data-search="{{ $g['search_blob'] }}" data-jenis="{{ $g['jenis'] }}" data-pic="{{ $g['pic'] }}"
-                    data-unit="{{ $g['unit'] ?? '' }}" data-status="{{ $g['status_blob'] }}"
-                    data-tahap="{{ $g['tahap_blob'] }}" data-tanggal="{{ $g['tanggal_iso'] }}">
+                                <article
+                                    class="js-memo-item bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 memo-cols"
+                                    data-search="{{ $g['search_blob'] }}" data-jenis="{{ $g['jenis'] }}" data-pic="{{ $g['pic'] }}"
+                                    data-unit="{{ $g['unit'] ?? '' }}" data-status="{{ $g['status_blob'] }}"
+                                    data-tahap="{{ $g['tahap_blob'] }}" data-tanggal="{{ $g['tanggal_iso'] }}">
 
-                    {{-- Info kegiatan --}}
-                    <div class="flex gap-3 min-w-0">
-                        <span
-                            class="js-memo-number inline-flex h-7 min-w-7 px-2 items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-500 tabular-nums shrink-0">{{ $loop->iteration }}</span>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                <span
-                                    class="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold border {{ $g['jenis_class'] }}">
-                                    {{ $g['jenis_label'] }}
-                                </span>
-                                <span class="text-xs text-gray-500">{{ $g['tanggal_tampil'] ?: '-' }}</span>
-                            </div>
-
-                            <h3 class="text-sm font-semibold text-gray-800 leading-snug break-words mt-2">
-                                {{ $g['uraian_kegiatan'] ?? '-' }}
-                            </h3>
-
-                            <dl class="mt-2 space-y-1 text-xs">
-                                @if ($keuangan)
-                                    <div class="flex gap-2">
-                                        <dt class="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-px">Unit</dt>
-                                        <dd class="text-gray-700 font-medium break-words min-w-0">{{ $g['unit'] ?? '-' }}</dd>
-                                    </div>
-                                @endif
-                                <div class="flex gap-2">
-                                    <dt class="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-px">PIC</dt>
-                                    <dd class="text-gray-700 font-medium break-words min-w-0">{{ $g['pic'] ?: '-' }}</dd>
-                                </div>
-                                <div class="flex gap-2">
-                                    <dt class="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-px">MAK</dt>
-                                    <dd class="text-gray-700 font-medium font-mono text-[11px] break-words [overflow-wrap:anywhere] min-w-0">
-                                        {{ $g['mak'] ?? '-' }}
-                                    </dd>
-                                </div>
-                            </dl>
-
-                            {{-- Hapus + Log (per memo PNS / Non PNS). PDF ada di kolom Dokumen --}}
-                            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                                @if ($g['bisa_hapus'])
-                                    <form action="{{ route('memo.destroy', $g['delete_id']) }}" method="POST"
-                                        class="delete-memo-form inline-flex m-0" data-label="{{ $g['delete_label'] }}">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" title="Hapus {{ $g['delete_label'] }}"
-                                            class="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-red-500 bg-white hover:bg-red-50 border border-red-400 rounded-md transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                                            {{ $g['delete_text'] }}
-                                        </button>
-                                    </form>
-                                @endif
-
-                                @foreach ($g['items'] as $memoLog)
-                                    @php $jmlLogBtn = count($logMap[$memoLog['id']] ?? []); @endphp
-                                    <div class="inline-flex items-center gap-1.5">
-                                        @if (count($g['items']) > 1 && $memoLog['status'])
-                                            <span
-                                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ $statusClass($memoLog['status']) }}">
-                                                {{ $memoLog['status'] }}
-                                            </span>
-                                        @endif
-
-                                        <button type="button"
-                                            class="js-log-toggle inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                                            data-target="log-{{ $memoLog['id'] }}" aria-expanded="false"
-                                            aria-controls="log-{{ $memoLog['id'] }}">
-                                            Log
-                                            @if ($jmlLogBtn > 0)
-                                                <span class="text-gray-400">({{ $jmlLogBtn }})</span>
-                                            @endif
-                                        </button>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            {{-- Nominatif memo mandiri: badge jumlah, tombol tambah, ikon kunci --}}
-                            @foreach ($g['items'] as $mNom)
-                                @if (!empty($mNom['mandiri']) && !empty($mNom['perlu_nominatif']))
-                                    @php
-                                        $jmlNom = (int) ($mNom['nominatif_count'] ?? 0);
-                                        $nomTerkunci = !in_array($mNom['tahap'] ?? 'draft', ['draft', 'dikembalikan'], true);
-                                        $entryId = (int) substr($mNom['id'], 6); // 'entry-' = 6 huruf
-                                    @endphp
-                                    <div class="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2.5">
-                                        <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-                                            <span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Nominatif</span>
-
-                                            @if ($jmlNom > 0)
-                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                                                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                                    {{ $jmlNom }} nominatif
-                                                </span>
-                                            @else
-                                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
-                                                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                                                    Belum ada nominatif
-                                                </span>
-                                            @endif
-
-                                            @if (!empty($mNom['bisa_tambah_nominatif']))
-                                                <a href="{{ route('nominatif.pilih', ['memo' => $entryId]) }}"
-                                                    class="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-500 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                                        aria-hidden="true">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
-                                                            d="M12 4v16m8-8H4" />
-                                                    </svg>
-                                                    Nominatif
-                                                </a>
-                                            @endif
-
-                                            @if ($nomTerkunci)
-                                                <span class="inline-flex items-center gap-1 text-[11px] text-gray-500"
-                                                    title="Nominatif terkunci selama memo di Keuangan. Terbuka lagi kalau memo dikembalikan.">
-                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor"
-                                                        viewBox="0 0 24 24" aria-hidden="true">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                                                            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                                                    </svg>
-                                                    Terkunci
-                                                </span>
-                                            @endif
-                                        </div>
-
-                                        @if ($jmlNom === 0 && !$nomTerkunci)
-                                            <p class="mt-1.5 text-[11px] text-amber-700">
-                                                Memo ini belum bisa dikirim ke Keuangan sebelum ada minimal satu nominatif.
-                                            </p>
-                                        @endif
-                                    </div>
-                                @endif
-                            @endforeach
-
-                            @unless ($g['bisa_hapus'])
-                                <p class="mt-3 text-[11px] text-gray-400 border border-dashed border-gray-200 bg-gray-50/60 rounded-lg px-3 py-2">
-                                    Tidak bisa dihapus karena sudah dikirim ke Keuangan, SAKTI, atau SP2D.
-                                    Ajukan pengembalian atau gunakan status Batal.
-                                </p>
-                            @endunless
-                        </div>
-                    </div>
-
-                    {{-- Memo per status (PNS / Non PNS) --}}
-                    <div class="memo-right space-y-2 min-w-0">
-                        @foreach ($g['items'] as $memo)
-                            @php
-                                $st = $memo['status_anggaran'] ?? 'outstanding';
-                                $tahap = $memo['tahap'] ?? 'draft';
-                                $idx = $urutStatus[$st] ?? null;
-                                $tglSt = $st === 'sakti'
-                                    ? ($memo['tgl_sakti'] ?? null)
-                                    : ($st === 'sp2d' ? ($memo['tgl_sp2d'] ?? null) : null);
-                                $opsi = $opsiManual($st, $tahap);
-                                $logMemo = $logMap[$memo['id']] ?? [];
-
-                                $adaPengajuan = !empty($memo['pengajuan_id']);
-                                $aksiUnit = !empty($memo['bisa_kirim']) || !empty($memo['bisa_ajukan']) || !empty($memo['editable']);
-                                $aksiKeuangan = $keuangan
-                                    && ($adaPengajuan || in_array($tahap, ['dikirim', 'lolos_spk', 'sakti', 'otp_ppk'], true));
-                                $aksiStatus = $keuangan && count($opsi) > 0;
-                                $adaAksi = $adaPengajuan || $aksiUnit || $aksiKeuangan || $aksiStatus;
-                            @endphp
-
-                            <div class="rounded-xl bg-gray-50 border border-gray-200 p-3 space-y-3">
-
-                                {{-- Baris info: nomor | status | nominal | aksi | dokumen --}}
-                                <div class="memo-row">
-
-                                    {{-- Nomor memo --}}
-                                    <div class="min-w-0 flex flex-col items-start gap-1.5">
-                                        @if ($memo['agenda_id'])
-                                            <a href="{{ route('agendas.show', $memo['agenda_id']) }}"
-                                                class="font-semibold text-xs text-gray-800 tabular-nums hover:text-blue-600 hover:underline break-all">
-                                                {{ $memo['nomor_memo'] }}
-                                            </a>
-                                        @else
-                                            <span class="font-semibold text-xs text-gray-800 tabular-nums break-all">
-                                                {{ $memo['nomor_memo'] }}
-                                            </span>
-                                        @endif
-
-                                        @if ($memo['status'])
-                                            <span
-                                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ $statusClass($memo['status']) }}">
-                                                {{ $memo['status'] }}
-                                            </span>
-                                        @endif
-                                    </div>
-
-                                    {{-- Progres & status --}}
-                                    <div class="min-w-0 flex flex-col items-start gap-2">
-                                        {{-- Badge status anggaran + tanggal --}}
-                                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                            <span
-                                                class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border {{ $statusBadge($st) }}">
-                                                <span class="h-1.5 w-1.5 rounded-full {{ $statusDot($st) }}"></span>
-                                                {{ $statusLabel[$st] ?? $st }}
-                                            </span>
-                                            @if ($tglSt)
-                                                <span class="text-[10px] text-gray-400 tabular-nums">
-                                                    {{ \Illuminate\Support\Carbon::parse($tglSt)->translatedFormat('d M Y') }}
-                                                </span>
-                                            @endif
-                                        </div>
-
-                                        {{-- Stepper progres 3 tahap dengan label --}}
-                                        @if ($idx !== null)
-                                            <div class="w-full max-w-[12rem]" role="img"
-                                                aria-label="Progres: {{ $statusLabel[$st] }}, tahap {{ $idx + 1 }} dari 3">
-                                                <div class="flex gap-1">
-                                                    @foreach ([0, 1, 2] as $i)
-                                                        <span
-                                                            class="h-1.5 flex-1 rounded-sm {{ $i <= $idx ? $statusBar($st) : 'bg-gray-200' }}"></span>
-                                                    @endforeach
-                                                </div>
-                                                <div class="mt-1 grid grid-cols-3 gap-1 text-[9px] leading-none">
-                                                    @foreach (['outstanding', 'sakti', 'sp2d'] as $i => $kode)
-                                                        <span
-                                                            class="truncate {{ $i === $idx ? 'font-semibold text-gray-800' : ($i < $idx ? 'font-medium text-gray-500' : 'font-medium text-gray-300') }}">
-                                                            {{ $statusLabel[$kode] }}
-                                                        </span>
-                                                    @endforeach
-                                                </div>
-                                            </div>
-                                        @endif
-
-                                        {{-- Tahap alur memo --}}
-                                        <p class="inline-flex items-start gap-1.5 text-[11px] font-medium leading-snug {{ $tahapText($tahap) }}">
-                                            <span class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full {{ $tahapDot($tahap) }}"></span>
-                                            <span class="min-w-0 break-words">{{ $tahapLabel[$tahap] ?? $tahap }}</span>
-                                        </p>
-                                    </div>
-
-                                    {{-- Nominal --}}
-                                    <div class="memo-wide memo-nominal min-w-0">
+                                    {{-- Info kegiatan --}}
+                                    <div class="flex gap-3 min-w-0">
                                         <span
-                                            class="text-xs font-semibold text-gray-700 tabular-nums whitespace-nowrap {{ $st === 'batal' ? 'line-through text-gray-400' : '' }}">
-                                            Rp {{ number_format($memo['nominal'] ?? 0, 0, ',', '.') }}
-                                        </span>
-                                    </div>
-
-                                    {{-- Aksi (selalu dirender supaya kolom Dokumen tetap sejajar) --}}
-                                    <div class="memo-wide memo-aksi min-w-0 space-y-2 {{ $adaAksi ? '' : 'memo-aksi-kosong' }}">
-                                        @if ($adaAksi)
-                                            @if ($adaPengajuan)
-                                                <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 break-words">
-                                                    Pengajuan pengembalian menunggu keputusan:
-                                                    <span class="font-medium">{{ $memo['pengajuan_alasan'] }}</span>
-                                                </p>
-                                            @endif
-
-                                            <div class="flex flex-wrap items-center gap-1.5">
-                                                {{-- Unit kerja --}}
-                                                @if (!empty($memo['bisa_kirim']))
-                                                    <span class="aksi-kirim">
-                                                        <x-aksi-button varian="biru"
-                                                            :url="route('memo.kirim', $memo['id'])"
-                                                            :konfirmasi="'Kirim memo ' . $memo['nomor_memo'] . ' ke Keuangan? Setelah dikirim, memo tidak bisa diedit.'">
-                                                            <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
-                                                                viewBox="0 0 24 24" aria-hidden="true">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                                                                    d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                                                            </svg>
-                                                            Kirim ke Keuangan
-                                                        </x-aksi-button>
-                                                    </span>
-                                                @endif
-                                                @if (!empty($memo['bisa_ajukan']))
-                                                    <span class="aksi-ajukan">
-                                                        <x-aksi-button varian="abu"
-                                                            :url="route('memo.ajukan', $memo['id'])"
-                                                            prompt="alasan" :wajib="true"
-                                                            prompt-label="Alasan pengajuan pengembalian (wajib diisi):">
-                                                            <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
-                                                                viewBox="0 0 24 24" aria-hidden="true">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                                            </svg>
-                                                            Ajukan pengembalian
-                                                        </x-aksi-button>
-                                                    </span>
-                                                @endif
-                                                @if (!empty($memo['editable']))
-                                                    <a href="{{ $memo['edit_url'] }}"
-                                                        class="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                                                        Edit
-                                                    </a>
-                                                @endif
-
-                                                {{-- Keuangan Sesdep --}}
-                                                @if ($keuangan)
-                                                    @if ($adaPengajuan)
-                                                        <x-aksi-button varian="hijau"
-                                                            :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
-                                                            :fields="['setuju' => 1]"
-                                                            :konfirmasi="'Setujui pengajuan? Memo akan dikembalikan ke unit kerja' . (in_array($tahap, ['sakti', 'otp_ppk'], true) ? ' dan SAKTI dilepas' : '') . '.'">
-                                                            Setujui pengajuan
-                                                        </x-aksi-button>
-                                                        <x-aksi-button varian="merah"
-                                                            :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
-                                                            :fields="['setuju' => 0]"
-                                                            prompt="catatan" :wajib="true"
-                                                            prompt-label="Catatan penolakan pengajuan (wajib diisi):">
-                                                            Tolak pengajuan
-                                                        </x-aksi-button>
-                                                    @endif
-
-                                                    @if ($tahap === 'dikirim' || $tahap === 'sakti')
-                                                        @php $gerbang = $tahap === 'dikirim' ? 'K2' : 'K3'; @endphp
-                                                        <x-aksi-button varian="hijau"
-                                                            :url="route('memo.verifikasi', $memo['id'])"
-                                                            :fields="['gerbang' => $gerbang, 'lolos' => 1]"
-                                                            :konfirmasi="'Verifikasi ' . $gerbang . ': lengkap dan sesuai?'">
-                                                            {{ $gerbang }} lolos
-                                                        </x-aksi-button>
-                                                        <x-aksi-button varian="merah"
-                                                            :url="route('memo.verifikasi', $memo['id'])"
-                                                            :fields="['gerbang' => $gerbang, 'lolos' => 0]"
-                                                            prompt="alasan" :wajib="true"
-                                                            :prompt-label="'Alasan tidak lolos ' . $gerbang . ' (wajib diisi). Memo akan dikembalikan ke unit kerja:'">
-                                                            {{ $gerbang }} tidak lolos
-                                                        </x-aksi-button>
-                                                    @endif
-
-                                                    @if ($tahap === 'lolos_spk')
-                                                        <x-aksi-button varian="biru"
-                                                            :url="route('memo.input-sakti', $memo['id'])"
-                                                            :konfirmasi="'Catat memo ' . $memo['nomor_memo'] . ' sudah diinput di SAKTI?'">
-                                                            Input SAKTI
-                                                        </x-aksi-button>
-                                                    @endif
-
-                                                    @if ($tahap === 'otp_ppk')
-                                                        <x-aksi-button varian="biru"
-                                                            :url="route('memo.selesai-otp', $memo['id'])"
-                                                            konfirmasi="OTP PPK selesai? Setelah ini memo tidak bisa dikembalikan lagi.">
-                                                            Selesai OTP
-                                                        </x-aksi-button>
-                                                    @endif
-
-                                                    {{-- Ubah status manual (hanya pada tahap yang diizinkan) --}}
-                                                    @if (count($opsi) > 0)
-                                                        <form method="POST" action="{{ route('memo.status', $memo['id']) }}"
-                                                            class="js-status-form m-0" data-maju="{{ $maju[$st] ?? '' }}">
-                                                            @csrf
-                                                            @method('PATCH')
-                                                            <input type="hidden" name="alasan" value="">
-                                                            <select name="status"
-                                                                aria-label="Ubah status {{ $memo['nomor_memo'] }}"
-                                                                class="js-status-select border border-gray-200 bg-white rounded-md px-2 py-1 text-[11px] text-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none cursor-pointer">
-                                                                <option value="">Ubah status…</option>
-                                                                @foreach ($opsi as $o)
-                                                                    <option value="{{ $o }}">
-                                                                        @if (($maju[$st] ?? null) === $o)
-                                                                            Lanjut ke {{ $statusLabel[$o] }}
-                                                                        @elseif ($o === 'batal')
-                                                                            Batalkan memo
-                                                                        @else
-                                                                            Kembali ke {{ $statusLabel[$o] }}
-                                                                        @endif
-                                                                    </option>
-                                                                @endforeach
-                                                            </select>
-                                                        </form>
-                                                    @endif
-                                                @endif
+                                            class="js-memo-number inline-flex h-7 min-w-7 px-2 items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-500 tabular-nums shrink-0">{{ $loop->iteration }}</span>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                                <span
+                                                    class="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold border {{ $g['jenis_class'] }}">
+                                                    {{ $g['jenis_label'] }}
+                                                </span>
+                                                <span class="text-xs text-gray-500">{{ $g['tanggal_tampil'] ?: '-' }}</span>
                                             </div>
-                                        @else
-                                            <span class="text-[11px] text-gray-300">&mdash;</span>
-                                        @endif
-                                    </div>
 
-                                    {{-- Dokumen: PDF saja --}}
-                                    <div class="memo-wide memo-dokumen min-w-0">
-                                        <a href="{{ $memo['pdf_url'] }}" target="_blank" rel="noopener"
-                                            title="Buka PDF {{ $memo['status'] ?? '' }}"
-                                            class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-500 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                                aria-hidden="true">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                            </svg>
-                                            PDF
-                                        </a>
-                                    </div>
-                                </div>
+                                            <h3 class="text-sm font-semibold text-gray-800 leading-snug break-words mt-2">
+                                                {{ $g['uraian_kegiatan'] ?? '-' }}
+                                            </h3>
 
-                                {{-- Log: tersembunyi sampai tombol Log (kiri bawah) ditekan --}}
-                                <div id="log-{{ $memo['id'] }}" class="hidden border-t border-gray-200 pt-3">
-                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Riwayat</p>
-                                    @if (count($logMemo) > 0)
-                                        <ol class="space-y-2.5">
-                                            @foreach ($logMemo as $l)
-                                                <li class="flex gap-2.5">
-                                                    <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"></span>
-                                                    <div class="min-w-0 text-[11px] leading-snug">
-                                                        <p class="font-semibold text-gray-700 break-words">{{ $l['judul'] }}</p>
-                                                        @if (filled($l['detail']))
-                                                            <p class="text-gray-600 break-words">{{ $l['detail'] }}</p>
+                                            <dl class="mt-2 space-y-1 text-xs">
+                                                @if ($keuangan)
+                                                    <div class="flex gap-2">
+                                                        <dt class="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-px">Unit</dt>
+                                                        <dd class="text-gray-700 font-medium break-words min-w-0">{{ $g['unit'] ?? '-' }}</dd>
+                                                    </div>
+                                                @endif
+                                                <div class="flex gap-2">
+                                                    <dt class="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-px">PIC</dt>
+                                                    <dd class="text-gray-700 font-medium break-words min-w-0">{{ $g['pic'] ?: '-' }}</dd>
+                                                </div>
+                                                <div class="flex gap-2">
+                                                    <dt class="w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 pt-px">MAK</dt>
+                                                    <dd class="text-gray-700 font-medium font-mono text-[11px] break-words [overflow-wrap:anywhere] min-w-0">
+                                                        {{ $g['mak'] ?? '-' }}
+                                                    </dd>
+                                                </div>
+                                            </dl>
+
+                                            {{-- Hapus + Log (per memo PNS / Non PNS). PDF ada di kolom Dokumen --}}
+                                            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                                                @if ($g['bisa_hapus'])
+                                                    <form action="{{ route('memo.destroy', $g['delete_id']) }}" method="POST"
+                                                        class="delete-memo-form inline-flex m-0" data-label="{{ $g['delete_label'] }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" title="Hapus {{ $g['delete_label'] }}"
+                                                            class="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-red-500 bg-white hover:bg-red-50 border border-red-400 rounded-md transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                                                            {{ $g['delete_text'] }}
+                                                        </button>
+                                                    </form>
+                                                @endif
+
+                                                @foreach ($g['items'] as $memoLog)
+                                                    @php $jmlLogBtn = count($logMap[$memoLog['id']] ?? []); @endphp
+                                                    <div class="inline-flex items-center gap-1.5">
+                                                        @if (count($g['items']) > 1 && $memoLog['status'])
+                                                            <span
+                                                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ $statusClass($memoLog['status']) }}">
+                                                                {{ $memoLog['status'] }}
+                                                            </span>
                                                         @endif
-                                                        <p class="text-gray-400">
-                                                            {{ \Illuminate\Support\Carbon::parse($l['waktu'])->translatedFormat('d M Y, H:i') }}
-                                                            @if (filled($l['oleh']))
-                                                                · {{ $l['oleh'] }}
+
+                                                        <button type="button"
+                                                            class="js-log-toggle inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                                            data-target="log-{{ $memoLog['id'] }}" aria-expanded="false"
+                                                            aria-controls="log-{{ $memoLog['id'] }}">
+                                                            Log
+                                                            @if ($jmlLogBtn > 0)
+                                                                <span class="text-gray-400">({{ $jmlLogBtn }})</span>
                                                             @endif
+                                                        </button>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+
+
+                {{-- Nominatif memo mandiri: tombol PDF per nominatif, tombol tambah, ikon kunci --}}
+                @foreach ($g['items'] as $mNom)
+                    @if (!empty($mNom['mandiri']) && !empty($mNom['perlu_nominatif']))
+                        @php
+                            $jmlNom = (int) ($mNom['nominatif_count'] ?? 0);
+                            // Diisi dari MemoController: [['label' => 'Honorarium', 'url' => '...'], ...]
+                            $nomPdfs = $mNom['nominatif_pdfs'] ?? [];
+                            $nomTerkunci = !in_array($mNom['tahap'] ?? 'draft', ['draft', 'dikembalikan'], true);
+                            $entryId = (int) substr($mNom['id'], 6); // 'entry-' = 6 huruf
+                        @endphp
+                        <div class="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2.5">
+                            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+                                <span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Nominatif</span>
+
+                                @forelse ($nomPdfs as $np)
+                                    <a href="{{ $np['url'] }}" target="_blank" rel="noopener"
+                                        title="Buka PDF nominatif {{ $np['label'] }}"
+                                        class="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-500 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                            aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                        PDF{{ count($nomPdfs) > 1 ? ' ' . $np['label'] : '' }}
+                                    </a>
+                                @empty
+                                    @if ($jmlNom > 0)
+                                        {{-- Cadangan: ada nominatif tapi URL PDF belum dikirim dari controller --}}
+                                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                            {{ $jmlNom }} nominatif
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                            Belum ada nominatif
+                                        </span>
+                                    @endif
+                                @endforelse
+
+                                @if (!empty($mNom['bisa_tambah_nominatif']))
+                                    <a href="{{ route('nominatif.pilih', ['memo' => $entryId]) }}"
+                                        class="inline-flex items-center justify-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-500 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                            aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
+                                                d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Nominatif
+                                    </a>
+                                @endif
+
+                                @if ($nomTerkunci)
+                                    <span class="inline-flex items-center gap-1 text-[11px] text-gray-500"
+                                        title="Nominatif terkunci selama memo di Keuangan. Terbuka lagi kalau memo dikembalikan.">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                                d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                        </svg>
+                                        Terkunci
+                                    </span>
+                                @endif
+                            </div>
+
+                            @if ($jmlNom === 0 && !$nomTerkunci)
+                                <p class="mt-1.5 text-[11px] text-amber-700">
+                                    Memo ini belum bisa dikirim ke Keuangan sebelum ada minimal satu nominatif.
+                                </p>
+                            @endif
+                        </div>
+                    @endif
+                @endforeach
+
+                                            @unless ($g['bisa_hapus'])
+                                                <p class="mt-3 text-[11px] text-gray-400 border border-dashed border-gray-200 bg-gray-50/60 rounded-lg px-3 py-2">
+                                                    Tidak bisa dihapus karena sudah dikirim ke Keuangan, SAKTI, atau SP2D.
+                                                    Ajukan pengembalian atau gunakan status Batal.
+                                                </p>
+                                            @endunless
+                                        </div>
+                                    </div>
+
+                                    {{-- Memo per status (PNS / Non PNS) --}}
+                                    <div class="memo-right space-y-2 min-w-0">
+                                        @foreach ($g['items'] as $memo)
+                                            @php
+                                                $st = $memo['status_anggaran'] ?? 'outstanding';
+                                                $tahap = $memo['tahap'] ?? 'draft';
+                                                $idx = $urutStatus[$st] ?? null;
+                                                $tglSt = $st === 'sakti'
+                                                    ? ($memo['tgl_sakti'] ?? null)
+                                                    : ($st === 'sp2d' ? ($memo['tgl_sp2d'] ?? null) : null);
+                                                $opsi = $opsiManual($st, $tahap);
+                                                $logMemo = $logMap[$memo['id']] ?? [];
+
+                                                $adaPengajuan = !empty($memo['pengajuan_id']);
+                                                $aksiUnit = !empty($memo['bisa_kirim']) || !empty($memo['bisa_ajukan']) || !empty($memo['editable']);
+                                                $aksiKeuangan = $keuangan
+                                                    && ($adaPengajuan || in_array($tahap, ['dikirim', 'lolos_spk', 'sakti', 'otp_ppk'], true));
+                                                $aksiStatus = $keuangan && count($opsi) > 0;
+                                                $adaAksi = $adaPengajuan || $aksiUnit || $aksiKeuangan || $aksiStatus;
+                                            @endphp
+
+                                            <div class="rounded-xl bg-gray-50 border border-gray-200 p-3 space-y-3">
+
+                                                {{-- Baris info: nomor | status | nominal | aksi | dokumen --}}
+                                                <div class="memo-row">
+
+                                                    {{-- Nomor memo --}}
+                                                    <div class="min-w-0 flex flex-col items-start gap-1.5">
+                                                        @if ($memo['agenda_id'])
+                                                            <a href="{{ route('agendas.show', $memo['agenda_id']) }}"
+                                                                class="font-semibold text-xs text-gray-800 tabular-nums hover:text-blue-600 hover:underline break-all">
+                                                                {{ $memo['nomor_memo'] }}
+                                                            </a>
+                                                        @else
+                                                            <span class="font-semibold text-xs text-gray-800 tabular-nums break-all">
+                                                                {{ $memo['nomor_memo'] }}
+                                                            </span>
+                                                        @endif
+
+                                                        @if ($memo['status'])
+                                                            <span
+                                                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border {{ $statusClass($memo['status']) }}">
+                                                                {{ $memo['status'] }}
+                                                            </span>
+                                                        @endif
+                                                    </div>
+
+                                                    {{-- Progres & status --}}
+                                                    <div class="min-w-0 flex flex-col items-start gap-2">
+                                                        {{-- Badge status anggaran + tanggal --}}
+                                                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                            <span
+                                                                class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border {{ $statusBadge($st) }}">
+                                                                <span class="h-1.5 w-1.5 rounded-full {{ $statusDot($st) }}"></span>
+                                                                {{ $statusLabel[$st] ?? $st }}
+                                                            </span>
+                                                            @if ($tglSt)
+                                                                <span class="text-[10px] text-gray-400 tabular-nums">
+                                                                    {{ \Illuminate\Support\Carbon::parse($tglSt)->translatedFormat('d M Y') }}
+                                                                </span>
+                                                            @endif
+                                                        </div>
+
+                                                        {{-- Stepper progres 3 tahap dengan label --}}
+                                                        @if ($idx !== null)
+                                                            <div class="w-full max-w-[12rem]" role="img"
+                                                                aria-label="Progres: {{ $statusLabel[$st] }}, tahap {{ $idx + 1 }} dari 3">
+                                                                <div class="flex gap-1">
+                                                                    @foreach ([0, 1, 2] as $i)
+                                                                        <span
+                                                                            class="h-1.5 flex-1 rounded-sm {{ $i <= $idx ? $statusBar($st) : 'bg-gray-200' }}"></span>
+                                                                    @endforeach
+                                                                </div>
+                                                                <div class="mt-1 grid grid-cols-3 gap-1 text-[9px] leading-none">
+                                                                    @foreach (['outstanding', 'sakti', 'sp2d'] as $i => $kode)
+                                                                        <span
+                                                                            class="truncate {{ $i === $idx ? 'font-semibold text-gray-800' : ($i < $idx ? 'font-medium text-gray-500' : 'font-medium text-gray-300') }}">
+                                                                            {{ $statusLabel[$kode] }}
+                                                                        </span>
+                                                                    @endforeach
+                                                                </div>
+                                                            </div>
+                                                        @endif
+
+                                                        {{-- Tahap alur memo --}}
+                                                        <p class="inline-flex items-start gap-1.5 text-[11px] font-medium leading-snug {{ $tahapText($tahap) }}">
+                                                            <span class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full {{ $tahapDot($tahap) }}"></span>
+                                                            <span class="min-w-0 break-words">{{ $tahapLabel[$tahap] ?? $tahap }}</span>
                                                         </p>
                                                     </div>
-                                                </li>
-                                            @endforeach
-                                        </ol>
-                                    @else
-                                        <p class="text-[11px] text-gray-400">Belum ada riwayat untuk memo ini.</p>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </article>
+
+                                                    {{-- Nominal --}}
+                                                    <div class="memo-wide memo-nominal min-w-0">
+                                                        <span
+                                                            class="text-xs font-semibold text-gray-700 tabular-nums whitespace-nowrap {{ $st === 'batal' ? 'line-through text-gray-400' : '' }}">
+                                                            Rp {{ number_format($memo['nominal'] ?? 0, 0, ',', '.') }}
+                                                        </span>
+                                                    </div>
+
+                                                    {{-- Aksi (selalu dirender supaya kolom Dokumen tetap sejajar) --}}
+                                                    <div class="memo-wide memo-aksi min-w-0 space-y-2 {{ $adaAksi ? '' : 'memo-aksi-kosong' }}">
+                                                        @if ($adaAksi)
+                                                            @if ($adaPengajuan)
+                                                                <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 break-words">
+                                                                    Pengajuan pengembalian menunggu keputusan:
+                                                                    <span class="font-medium">{{ $memo['pengajuan_alasan'] }}</span>
+                                                                </p>
+                                                            @endif
+
+                                                            <div class="flex flex-wrap items-center gap-1.5">
+                                                                {{-- Unit kerja --}}
+                                                                @if (!empty($memo['bisa_kirim']))
+                                                                    <span class="aksi-kirim">
+                                                                        <x-aksi-button varian="biru"
+                                                                            :url="route('memo.kirim', $memo['id'])"
+                                                                            :konfirmasi="'Kirim memo ' . $memo['nomor_memo'] . ' ke Keuangan? Setelah dikirim, memo tidak bisa diedit.'">
+                                                                            <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
+                                                                                viewBox="0 0 24 24" aria-hidden="true">
+                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                                                                    d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                                                                            </svg>
+                                                                            Kirim ke Keuangan
+                                                                        </x-aksi-button>
+                                                                    </span>
+                                                                @endif
+                                                                @if (!empty($memo['bisa_ajukan']))
+                                                                    <span class="aksi-ajukan">
+                                                                        <x-aksi-button varian="abu"
+                                                                            :url="route('memo.ajukan', $memo['id'])"
+                                                                            prompt="alasan" :wajib="true"
+                                                                            prompt-label="Alasan pengajuan pengembalian (wajib diisi):">
+                                                                            <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
+                                                                                viewBox="0 0 24 24" aria-hidden="true">
+                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                                            </svg>
+                                                                            Ajukan pengembalian
+                                                                        </x-aksi-button>
+                                                                    </span>
+                                                                @endif
+                                                                @if (!empty($memo['editable']))
+                                                                    <a href="{{ $memo['edit_url'] }}"
+                                                                        class="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                                                                        Edit
+                                                                    </a>
+                                                                @endif
+
+                                                                {{-- Keuangan Sesdep --}}
+                                                                @if ($keuangan)
+                                                                    @if ($adaPengajuan)
+                                                                        <x-aksi-button varian="hijau"
+                                                                            :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
+                                                                            :fields="['setuju' => 1]"
+                                                                            :konfirmasi="'Setujui pengajuan? Memo akan dikembalikan ke unit kerja' . (in_array($tahap, ['sakti', 'otp_ppk'], true) ? ' dan SAKTI dilepas' : '') . '.'">
+                                                                            Setujui pengajuan
+                                                                        </x-aksi-button>
+                                                                        <x-aksi-button varian="merah"
+                                                                            :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
+                                                                            :fields="['setuju' => 0]"
+                                                                            prompt="catatan" :wajib="true"
+                                                                            prompt-label="Catatan penolakan pengajuan (wajib diisi):">
+                                                                            Tolak pengajuan
+                                                                        </x-aksi-button>
+                                                                    @endif
+
+                                                                    @if ($tahap === 'dikirim' || $tahap === 'sakti')
+                                                                        @php $gerbang = $tahap === 'dikirim' ? 'K2' : 'K3'; @endphp
+                                                                        <x-aksi-button varian="hijau"
+                                                                            :url="route('memo.verifikasi', $memo['id'])"
+                                                                            :fields="['gerbang' => $gerbang, 'lolos' => 1]"
+                                                                            :konfirmasi="'Verifikasi ' . $gerbang . ': lengkap dan sesuai?'">
+                                                                            {{ $gerbang }} lolos
+                                                                        </x-aksi-button>
+                                                                        <x-aksi-button varian="merah"
+                                                                            :url="route('memo.verifikasi', $memo['id'])"
+                                                                            :fields="['gerbang' => $gerbang, 'lolos' => 0]"
+                                                                            prompt="alasan" :wajib="true"
+                                                                            :prompt-label="'Alasan tidak lolos ' . $gerbang . ' (wajib diisi). Memo akan dikembalikan ke unit kerja:'">
+                                                                            {{ $gerbang }} tidak lolos
+                                                                        </x-aksi-button>
+                                                                    @endif
+
+                                                                    @if ($tahap === 'lolos_spk')
+                                                                        <x-aksi-button varian="biru"
+                                                                            :url="route('memo.input-sakti', $memo['id'])"
+                                                                            :konfirmasi="'Catat memo ' . $memo['nomor_memo'] . ' sudah diinput di SAKTI?'">
+                                                                            Input SAKTI
+                                                                        </x-aksi-button>
+                                                                    @endif
+
+                                                                    @if ($tahap === 'otp_ppk')
+                                                                        <x-aksi-button varian="biru"
+                                                                            :url="route('memo.selesai-otp', $memo['id'])"
+                                                                            konfirmasi="OTP PPK selesai? Setelah ini memo tidak bisa dikembalikan lagi.">
+                                                                            Selesai OTP
+                                                                        </x-aksi-button>
+                                                                    @endif
+
+                                                                    {{-- Ubah status manual (hanya pada tahap yang diizinkan) --}}
+                                                                    @if (count($opsi) > 0)
+                                                                        <form method="POST" action="{{ route('memo.status', $memo['id']) }}"
+                                                                            class="js-status-form m-0" data-maju="{{ $maju[$st] ?? '' }}">
+                                                                            @csrf
+                                                                            @method('PATCH')
+                                                                            <input type="hidden" name="alasan" value="">
+                                                                            <select name="status"
+                                                                                aria-label="Ubah status {{ $memo['nomor_memo'] }}"
+                                                                                class="js-status-select border border-gray-200 bg-white rounded-md px-2 py-1 text-[11px] text-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none cursor-pointer">
+                                                                                <option value="">Ubah status…</option>
+                                                                                @foreach ($opsi as $o)
+                                                                                    <option value="{{ $o }}">
+                                                                                        @if (($maju[$st] ?? null) === $o)
+                                                                                            Lanjut ke {{ $statusLabel[$o] }}
+                                                                                        @elseif ($o === 'batal')
+                                                                                            Batalkan memo
+                                                                                        @else
+                                                                                            Kembali ke {{ $statusLabel[$o] }}
+                                                                                        @endif
+                                                                                    </option>
+                                                                                @endforeach
+                                                                            </select>
+                                                                        </form>
+                                                                    @endif
+                                                                @endif
+                                                            </div>
+                                                        @else
+                                                            <span class="text-[11px] text-gray-300">&mdash;</span>
+                                                        @endif
+                                                    </div>
+
+                                                    {{-- Dokumen: PDF saja --}}
+                                                    <div class="memo-wide memo-dokumen min-w-0">
+                                                        <a href="{{ $memo['pdf_url'] }}" target="_blank" rel="noopener"
+                                                            title="Buka PDF {{ $memo['status'] ?? '' }}"
+                                                            class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-500 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                                aria-hidden="true">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                            </svg>
+                                                            PDF
+                                                        </a>
+                                                    </div>
+                                                </div>
+
+                                                {{-- Log: tersembunyi sampai tombol Log (kiri bawah) ditekan --}}
+                                                <div id="log-{{ $memo['id'] }}" class="hidden border-t border-gray-200 pt-3">
+                                                    <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Riwayat</p>
+                                                    @if (count($logMemo) > 0)
+                                                        <ol class="space-y-2.5">
+                                                            @foreach ($logMemo as $l)
+                                                                <li class="flex gap-2.5">
+                                                                    <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"></span>
+                                                                    <div class="min-w-0 text-[11px] leading-snug">
+                                                                        <p class="font-semibold text-gray-700 break-words">{{ $l['judul'] }}</p>
+                                                                        @if (filled($l['detail']))
+                                                                            <p class="text-gray-600 break-words">{{ $l['detail'] }}</p>
+                                                                        @endif
+                                                                        <p class="text-gray-400">
+                                                                            {{ \Illuminate\Support\Carbon::parse($l['waktu'])->translatedFormat('d M Y, H:i') }}
+                                                                            @if (filled($l['oleh']))
+                                                                                · {{ $l['oleh'] }}
+                                                                            @endif
+                                                                        </p>
+                                                                    </div>
+                                                                </li>
+                                                            @endforeach
+                                                        </ol>
+                                                    @else
+                                                        <p class="text-[11px] text-gray-400">Belum ada riwayat untuk memo ini.</p>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </article>
             @empty
                 <div class="bg-white rounded-2xl border border-gray-200 px-4 py-14 text-center">
                     <p class="text-sm font-semibold text-gray-800">Belum ada nomor memo</p>
