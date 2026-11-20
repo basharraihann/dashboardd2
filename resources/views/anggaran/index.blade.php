@@ -8,7 +8,7 @@
         }
 
         .ang-scroll table {
-            min-width: 1100px;
+            min-width: 1250px;
         }
 
         @media (min-width: 1024px) {
@@ -114,37 +114,44 @@
                 <div>
                     <h2 class="text-2xl font-semibold tracking-tight text-slate-800">Laporan Ketersediaan Dana</h2>
                     <p id="ang-meta" class="mt-1 text-sm text-slate-500">Memuat data...</p>
-                    <p id="ang-updated" class="mt-1 hidden flex items-center gap-1.5 text-xs text-slate-400">
-                        <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke-width="1.8" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                        </svg>
-                        <span id="ang-updated-text"></span>
-                    </p>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 shrink-0">
-                    <a id="btn-export" href="{{ route('anggaran.export') }}"
-                        class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
-                        <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
-                            viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                        Export Excel
-                    </a>
-
-                    @if ($canUpload)
-                        <a href="{{ route('anggaran.upload') }}"
-                            class="inline-flex justify-center items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shrink-0 transition shadow-sm">
-                            <svg class="w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                <div class="flex flex-col sm:items-end gap-2 shrink-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" id="btn-source"
+                            class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                            <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
                                 viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                    d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                             </svg>
-                            Upload / Perbarui Data
+                            Sumber data
+                        </button>
+
+                        <a id="btn-export" href="{{ route('anggaran.export') }}"
+                            class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                            <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            Export Excel
                         </a>
-                    @endif
+
+                        @if ($canUpload)
+                            <a href="{{ route('anggaran.upload') }}"
+                                class="inline-flex justify-center items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shrink-0 transition shadow-sm">
+                                <svg class="w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                    viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                                Upload / Perbarui Data
+                            </a>
+                        @endif
+                    </div>
+                    <p id="ang-updated" class="hidden text-xs text-slate-400 sm:text-right">
+                        <span id="ang-updated-text"></span>
+                    </p>
                 </div>
             </div>
         </div>
@@ -361,16 +368,17 @@
                 <div class="ang-scroll">
                     <table class="w-full table-fixed text-[11px] leading-tight">
                         <colgroup>
-                            <col style="width:13%">
-                            <col style="width:20%">
-                            <col style="width:9%">
+                            <col style="width:11%">
+                            <col style="width:17%">
+                            <col style="width:8%">
                             <col style="width:10%">
                             <col style="width:9%">
                             <col style="width:8%">
                             <col style="width:9%">
                             <col style="width:5%">
                             <col style="width:9%">
-                            <col style="width:8%">
+                            <col style="width:7%">
+                            <col style="width:7%">
                         </colgroup>
                         <thead style="background:#2563eb" class="text-[11px] text-white sticky top-0 z-10">
                             <tr>
@@ -384,6 +392,7 @@
                                 <th class="text-right px-2 py-2 font-semibold">%</th>
                                 <th class="text-right px-2 py-2 font-semibold">Sisa</th>
                                 <th class="text-right px-2 py-2 font-semibold">Outstanding</th>
+                                <th class="text-right px-2 py-2 font-semibold">Sisa Efektif</th>
                             </tr>
                         </thead>
                         <tbody id="ang-tb"></tbody>
@@ -414,6 +423,39 @@
                             &rsaquo;</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- ===== Modal: Sumber data anggaran ===== --}}
+    <div id="source-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog"
+        aria-modal="true" aria-labelledby="source-title">
+        <div id="source-backdrop" class="absolute inset-0 bg-slate-900/50"></div>
+        <div class="relative w-full max-w-md rounded-2xl bg-white p-7 shadow-xl">
+            <div class="flex justify-center">
+                <span
+                    class="flex h-16 w-16 items-center justify-center rounded-full border-2 border-sky-400 text-sky-500">
+                    <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 11.25v5.25m0-9.75h.008v.008H12V6.75Z" />
+                    </svg>
+                </span>
+            </div>
+            <h3 id="source-title" class="mt-5 text-center text-2xl font-semibold text-slate-800">Sumber data anggaran
+            </h3>
+            <p class="mt-5 text-sm leading-relaxed text-slate-600">
+                Data di halaman ini diambil dari <b>SAKTI</b> (file Excel <b>FA Detail</b>) <b>di luar Blokir</b>. Nilai
+                anggaran yang sedang diblokir tidak termasuk dalam angka di sini.
+            </p>
+            <ul class="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-600">
+                <li><b>Pagu Revisi, Realisasi, Sisa:</b> dari FA Detail SAKTI per tanggal laporan.</li>
+                <li><b>Outstanding:</b> memo di aplikasi ini yang belum diinput ke SAKTI.</li>
+                <li><b>Sisa Efektif</b> = Sisa &minus; Outstanding, yang masih bisa dipakai untuk memo baru.</li>
+            </ul>
+            <div class="mt-6 flex justify-center">
+                <button type="button" id="btn-source-close"
+                    class="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition">Mengerti</button>
             </div>
         </div>
     </div>
@@ -942,6 +984,9 @@
                     const expandable = hasKids && r.depth < maxDepth;
                     const opened = expandable && isOpen(r);
 
+                    // Sisa Efektif = Sisa - Outstanding. Item tidak punya outstanding (null), jadi tidak dihitung.
+                    const sisaEf = (r.out === null || r.out === undefined) ? null : (v.pagu - v.sd - r.out);
+
                     // warna latar: pilihan > cocok > jenis level
                     let bg = st.row;
                     let ring = '';
@@ -1005,6 +1050,7 @@
                         <td class="${num}">${(pct * 100).toFixed(2).replace('.', ',')}%</td>
                         <td class="${num} ${numBold}">${rp(v.pagu - v.sd)}</td>
                         <td class="${num} ${numBold} ${r.out > 0 ? 'text-amber-700' : ''}">${r.out > 0 ? rp(r.out) : dash}</td>
+                        <td class="${num} ${numBold} ${sisaEf !== null && sisaEf < 0 ? 'text-red-600' : ''}">${sisaEf === null ? dash : rp(sisaEf)}</td>
                     </tr>`;
                 }).join('');
 
@@ -1053,6 +1099,17 @@
                 fillUnitSel();
                 render();
             }
+
+            // ---- modal Sumber data ----
+            const srcModal = $('source-modal');
+            const showSource = () => { srcModal.classList.remove('hidden'); $('btn-source-close').focus(); };
+            const hideSource = () => { srcModal.classList.add('hidden'); $('btn-source').focus(); };
+            $('btn-source').addEventListener('click', showSource);
+            $('btn-source-close').addEventListener('click', hideSource);
+            $('source-backdrop').addEventListener('click', hideSource);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !srcModal.classList.contains('hidden')) hideSource();
+            });
 
             // ---- event ----
             CH.forEach((k, i) => {
@@ -1165,7 +1222,10 @@
                     });
                     const titleCase = (t) => { t = String(t || ''); return t && t === t.toUpperCase() ? t.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : t; };
                     $('ang-meta').textContent = [titleCase(d.upload.satker), d.upload.periode].filter(Boolean).join(' – ');
-                    if (d.upload.at) { $('ang-updated-text').textContent = 'Diperbarui pada ' + d.upload.at; $('ang-updated').classList.remove('hidden'); }
+                    if (d.upload.at) {
+                        $('ang-updated-text').innerHTML = 'Data yang diupload: <span class="font-medium text-slate-500">Excel FA Detail dari SAKTI</span> · per ' + esc(d.upload.at);
+                        $('ang-updated').classList.remove('hidden');
+                    }
                     $('ang-body').classList.remove('hidden');
                     fillSel();
                     fillUnitSel();
