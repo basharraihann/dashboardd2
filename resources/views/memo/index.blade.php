@@ -542,129 +542,129 @@
                                                     {{-- Aksi (selalu dirender supaya kolom Dokumen tetap sejajar) --}}
                                                     <div class="memo-wide memo-aksi min-w-0 space-y-2 {{ $adaAksi ? '' : 'memo-aksi-kosong' }}">
                                                         @if ($adaAksi)
-                                                            @if ($adaPengajuan)
-                                                                <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 break-words">
-                                                                    Pengajuan pengembalian menunggu keputusan:
-                                                                    <span class="font-medium">{{ $memo['pengajuan_alasan'] }}</span>
-                                                                </p>
+                                                                                                                        @if ($adaPengajuan)
+                                                                                                                            <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 break-words">
+                                                                                                                                Pengajuan pengembalian menunggu keputusan:
+                                                                                                                                <span class="font-medium">{{ $memo['pengajuan_alasan'] }}</span>
+                                                                                                                            </p>
+                                                                                                                        @endif
+
+                                                                                                                        <div class="flex flex-wrap items-center gap-1.5">
+                                                                                                                            {{-- Unit kerja --}}
+                                                                                                                            @if (!empty($memo['bisa_kirim']))
+                                                                                                                                <span class="aksi-kirim">
+                                                                                                                                    <x-aksi-button varian="biru"
+                                                                                                                                        :url="route('memo.kirim', $memo['id'])"
+                                                                                                                                        :konfirmasi="'Kirim memo ' . $memo['nomor_memo'] . ' ke Keuangan? Setelah dikirim, memo tidak bisa diedit.'">
+                                                                                                                                        <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
+                                                                                                                                            viewBox="0 0 24 24" aria-hidden="true">
+                                                                                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                                                                                                                                d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                                                                                                                                        </svg>
+                                                                                                                                        Kirim ke Keuangan
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                </span>
+                                                                                                                            @endif
+                                                                                                                            @if (!empty($memo['bisa_ajukan']))
+                                                                                                                                <span class="aksi-ajukan">
+                                                                                                                                    <x-aksi-button varian="abu"
+                                                                                                                                        :url="route('memo.ajukan', $memo['id'])"
+                                                                                                                                        prompt="alasan" :wajib="true"
+                                                                                                                                        prompt-label="Alasan pengajuan pengembalian (wajib diisi):">
+                                                                                                                                        <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
+                                                                                                                                            viewBox="0 0 24 24" aria-hidden="true">
+                                                                                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                                                                                                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                                                                                                        </svg>
+                                                                                                                                        Ajukan pengembalian
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                </span>
+                                                                                                                            @endif
+                                                                                                                            @if (!empty($memo['editable']))
+                                                                                                                                <a href="{{ $memo['edit_url'] }}"
+                                                                                                                                    class="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                                                                                                                                    Edit
+                                                                                                                                </a>
+                                                                                                                            @endif
+
+                                                                                                                            {{-- Keuangan Sesdep --}}
+                                                            @if ($keuangan)
+                                                                                                                                @if ($adaPengajuan)
+                                                                                                                                    <x-aksi-button varian="hijau"
+                                                                                                                                        :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
+                                                                                                                                        :fields="['setuju' => 1]"
+                                                                                                                                        :konfirmasi="'Setujui pengajuan? Memo akan dikembalikan ke unit kerja' . (in_array($tahap, ['sakti', 'otp_ppk'], true) ? ' dan SAKTI dilepas' : '') . '.'">
+                                                                                                                                        Setujui pengajuan
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                    <x-aksi-button varian="merah"
+                                                                                                                                        :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
+                                                                                                                                        :fields="['setuju' => 0]"
+                                                                                                                                        prompt="catatan" :wajib="true"
+                                                                                                                                        prompt-label="Catatan penolakan pengajuan (wajib diisi):">
+                                                                                                                                        Tolak pengajuan
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                @endif
+
+                                                                                                                                @if ($tahap === 'dikirim' || $tahap === 'sakti')
+                                                                                                                                    @php $gerbang = $tahap === 'dikirim' ? 'K2' : 'K3'; @endphp
+                                                                                                                                    <x-aksi-button varian="hijau"
+                                                                                                                                        :url="route('memo.verifikasi', $memo['id'])"
+                                                                                                                                        :fields="['gerbang' => $gerbang, 'lolos' => 1]"
+                                                                                                                                        :konfirmasi="'Verifikasi ' . $gerbang . ': lengkap dan sesuai?'">
+                                                                                                                                        {{ $gerbang }} lolos
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                    <x-aksi-button varian="merah"
+                                                                                                                                        :url="route('memo.verifikasi', $memo['id'])"
+                                                                                                                                        :fields="['gerbang' => $gerbang, 'lolos' => 0]"
+                                                                                                                                        prompt="alasan" :wajib="true"
+                                                                                                                                        :prompt-label="'Alasan tidak lolos ' . $gerbang . ' (wajib diisi). Memo akan dikembalikan ke unit kerja:'">
+                                                                                                                                        {{ $gerbang }} tidak lolos
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                @endif
+                                                                @if ($tahap === 'lolos_spk')
+                                                                    <x-sakti-nomor-button :url="route('memo.input-sakti', $memo['id'])" :memo="$memo['nomor_memo']" />
+                                                                @endif
+
+                                                                @if (in_array($tahap, ['sakti', 'otp_ppk', 'ppspm'], true))
+                                                                    <x-sakti-nomor-button :ubah="true" label="Ubah nomor" :url="route('memo.ubah-nomor-sakti', $memo['id'])"
+                                                                        :memo="$memo['nomor_memo']" :jenis="$memo['jenis_dokumen'] ?? 'SPP'" :nomor="$memo['nomor_spp_spby'] ?? ''" />
+                                                                @endif
+
+                                                                                                                                @if ($tahap === 'otp_ppk')
+                                                                                                                                    <x-aksi-button varian="biru"
+                                                                                                                                        :url="route('memo.selesai-otp', $memo['id'])"
+                                                                                                                                        konfirmasi="OTP PPK selesai? Setelah ini memo tidak bisa dikembalikan lagi.">
+                                                                                                                                        Selesai OTP
+                                                                                                                                    </x-aksi-button>
+                                                                                                                                @endif
+
+                                                                                                                                                                                                {{-- Ubah status manual (hanya pada tahap yang diizinkan) --}}
+                                                                                                                                                                                                @if (count($opsi) > 0)
+                                                                                                                                                                                                    <form method="POST" action="{{ route('memo.status', $memo['id']) }}"
+                                                                                                                                                                                                        class="js-status-form m-0" data-maju="{{ $maju[$st] ?? '' }}">
+                                                                                                                                                                                                        @csrf
+                                                                                                                                                                                                        @method('PATCH')
+                                                                                                                                                                                                        <input type="hidden" name="alasan" value="">
+                                                                                                                                                                                                        <select name="status"
+                                                                                                                                                                                                            aria-label="Ubah status {{ $memo['nomor_memo'] }}"
+                                                                                                                                                                                                            class="js-status-select border border-gray-200 bg-white rounded-md px-2 py-1 text-[11px] text-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none cursor-pointer">
+                                                                                                                                                                                                            <option value="">Ubah status…</option>
+                                                                                                                                                                                                            @foreach ($opsi as $o)
+                                                                                                                                                                                                                <option value="{{ $o }}">
+                                                                                                                                                                                                                    @if (($maju[$st] ?? null) === $o)
+                                                                                                                                                                                                                        Lanjut ke {{ $statusLabel[$o] }}
+                                                                                                                                                                                                                    @elseif ($o === 'batal')
+                                                                                                                                                                                                                        Batalkan memo
+                                                                                                                                                                                                                    @else
+                                                                                                                                                                                                                        Kembali ke {{ $statusLabel[$o] }}
+                                                                                                                                                                                                                    @endif
+                                                                                                                                                                                                                </option>
+                                                                                                                                                                                                            @endforeach
+                                                                                                                                                                                                        </select>
+                                                                                                                                                                                                    </form>
+                                                                                                                                                                                                @endif
                                                             @endif
-
-                                                            <div class="flex flex-wrap items-center gap-1.5">
-                                                                {{-- Unit kerja --}}
-                                                                @if (!empty($memo['bisa_kirim']))
-                                                                    <span class="aksi-kirim">
-                                                                        <x-aksi-button varian="biru"
-                                                                            :url="route('memo.kirim', $memo['id'])"
-                                                                            :konfirmasi="'Kirim memo ' . $memo['nomor_memo'] . ' ke Keuangan? Setelah dikirim, memo tidak bisa diedit.'">
-                                                                            <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
-                                                                                viewBox="0 0 24 24" aria-hidden="true">
-                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                                                                                    d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                                                                            </svg>
-                                                                            Kirim ke Keuangan
-                                                                        </x-aksi-button>
-                                                                    </span>
-                                                                @endif
-                                                                @if (!empty($memo['bisa_ajukan']))
-                                                                    <span class="aksi-ajukan">
-                                                                        <x-aksi-button varian="abu"
-                                                                            :url="route('memo.ajukan', $memo['id'])"
-                                                                            prompt="alasan" :wajib="true"
-                                                                            prompt-label="Alasan pengajuan pengembalian (wajib diisi):">
-                                                                            <svg class="w-3.5 h-3.5 -ml-0.5 mr-1 inline-block" fill="none" stroke="currentColor"
-                                                                                viewBox="0 0 24 24" aria-hidden="true">
-                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                                                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                                                            </svg>
-                                                                            Ajukan pengembalian
-                                                                        </x-aksi-button>
-                                                                    </span>
-                                                                @endif
-                                                                @if (!empty($memo['editable']))
-                                                                    <a href="{{ $memo['edit_url'] }}"
-                                                                        class="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-white hover:bg-gray-100 border border-gray-300 rounded-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                                                                        Edit
-                                                                    </a>
-                                                                @endif
-
-                                                                {{-- Keuangan Sesdep --}}
-                                                                @if ($keuangan)
-                                                                    @if ($adaPengajuan)
-                                                                        <x-aksi-button varian="hijau"
-                                                                            :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
-                                                                            :fields="['setuju' => 1]"
-                                                                            :konfirmasi="'Setujui pengajuan? Memo akan dikembalikan ke unit kerja' . (in_array($tahap, ['sakti', 'otp_ppk'], true) ? ' dan SAKTI dilepas' : '') . '.'">
-                                                                            Setujui pengajuan
-                                                                        </x-aksi-button>
-                                                                        <x-aksi-button varian="merah"
-                                                                            :url="route('memo.pengajuan.putusan', $memo['pengajuan_id'])"
-                                                                            :fields="['setuju' => 0]"
-                                                                            prompt="catatan" :wajib="true"
-                                                                            prompt-label="Catatan penolakan pengajuan (wajib diisi):">
-                                                                            Tolak pengajuan
-                                                                        </x-aksi-button>
-                                                                    @endif
-
-                                                                    @if ($tahap === 'dikirim' || $tahap === 'sakti')
-                                                                        @php $gerbang = $tahap === 'dikirim' ? 'K2' : 'K3'; @endphp
-                                                                        <x-aksi-button varian="hijau"
-                                                                            :url="route('memo.verifikasi', $memo['id'])"
-                                                                            :fields="['gerbang' => $gerbang, 'lolos' => 1]"
-                                                                            :konfirmasi="'Verifikasi ' . $gerbang . ': lengkap dan sesuai?'">
-                                                                            {{ $gerbang }} lolos
-                                                                        </x-aksi-button>
-                                                                        <x-aksi-button varian="merah"
-                                                                            :url="route('memo.verifikasi', $memo['id'])"
-                                                                            :fields="['gerbang' => $gerbang, 'lolos' => 0]"
-                                                                            prompt="alasan" :wajib="true"
-                                                                            :prompt-label="'Alasan tidak lolos ' . $gerbang . ' (wajib diisi). Memo akan dikembalikan ke unit kerja:'">
-                                                                            {{ $gerbang }} tidak lolos
-                                                                        </x-aksi-button>
-                                                                    @endif
-
-                                                                    @if ($tahap === 'lolos_spk')
-                                                                        <x-aksi-button varian="biru"
-                                                                            :url="route('memo.input-sakti', $memo['id'])"
-                                                                            :konfirmasi="'Catat memo ' . $memo['nomor_memo'] . ' sudah diinput di SAKTI?'">
-                                                                            Input SAKTI
-                                                                        </x-aksi-button>
-                                                                    @endif
-
-                                                                    @if ($tahap === 'otp_ppk')
-                                                                        <x-aksi-button varian="biru"
-                                                                            :url="route('memo.selesai-otp', $memo['id'])"
-                                                                            konfirmasi="OTP PPK selesai? Setelah ini memo tidak bisa dikembalikan lagi.">
-                                                                            Selesai OTP
-                                                                        </x-aksi-button>
-                                                                    @endif
-
-                                                                    {{-- Ubah status manual (hanya pada tahap yang diizinkan) --}}
-                                                                    @if (count($opsi) > 0)
-                                                                        <form method="POST" action="{{ route('memo.status', $memo['id']) }}"
-                                                                            class="js-status-form m-0" data-maju="{{ $maju[$st] ?? '' }}">
-                                                                            @csrf
-                                                                            @method('PATCH')
-                                                                            <input type="hidden" name="alasan" value="">
-                                                                            <select name="status"
-                                                                                aria-label="Ubah status {{ $memo['nomor_memo'] }}"
-                                                                                class="js-status-select border border-gray-200 bg-white rounded-md px-2 py-1 text-[11px] text-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none cursor-pointer">
-                                                                                <option value="">Ubah status…</option>
-                                                                                @foreach ($opsi as $o)
-                                                                                    <option value="{{ $o }}">
-                                                                                        @if (($maju[$st] ?? null) === $o)
-                                                                                            Lanjut ke {{ $statusLabel[$o] }}
-                                                                                        @elseif ($o === 'batal')
-                                                                                            Batalkan memo
-                                                                                        @else
-                                                                                            Kembali ke {{ $statusLabel[$o] }}
-                                                                                        @endif
-                                                                                    </option>
-                                                                                @endforeach
-                                                                            </select>
-                                                                        </form>
-                                                                    @endif
-                                                                @endif
-                                                            </div>
+                                                                                                                        </div>
                                                         @else
                                                             <span class="text-[11px] text-gray-300">&mdash;</span>
                                                         @endif

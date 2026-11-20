@@ -126,6 +126,7 @@ Route::middleware('auth')->group(function () {
                 Route::post('pengajuan/{pengajuan}/putusan', 'putusan')->whereNumber('pengajuan')->name('pengajuan.putusan');
                 Route::post('{memo}/verifikasi', 'verifikasi')->where('memo', $pola)->name('verifikasi');
                 Route::post('{memo}/input-sakti', 'inputSakti')->where('memo', $pola)->name('input-sakti');
+                Route::post('{memo}/ubah-nomor-sakti', 'ubahNomorSakti')->where('memo', $pola)->name('ubah-nomor-sakti');
                 Route::post('{memo}/selesai-otp', 'selesaiOtp')->where('memo', $pola)->name('selesai-otp');
             });
         });

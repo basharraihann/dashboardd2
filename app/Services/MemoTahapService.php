@@ -123,17 +123,61 @@ class MemoTahapService
     }
 
     // Langkah 5: Keuangan Sesdep input ke SAKTI.
-    public static function inputSakti(string $memo, ?string $tanggal, int $userId): void
+    public static function inputSakti(string $memo, ?string $tanggal, int $userId, ?string $jenisDokumen = null, ?string $nomor = null): void
     {
-        DB::transaction(function () use ($memo, $tanggal, $userId) {
-            self::pindah($memo, ['lolos_spk'], 'sakti');
+        $nomor = filled($nomor) ? trim($nomor) : null;
 
-            if (MemoStatusService::ubah($memo, 'sakti', $tanggal, null, $userId) === false) {
+        DB::transaction(function () use ($memo, $tanggal, $userId, $jenisDokumen, $nomor) {
+            self::pindah($memo, ['lolos_spk'], 'sakti', function () use ($memo, $jenisDokumen, $nomor) {
+                if ($nomor !== null) {
+                    DB::table('memo_progres')->where('memo_key', $memo)
+                        ->update(['jenis_dokumen' => $jenisDokumen, 'nomor_spp_spby' => $nomor]);
+                }
+            });
+
+            $catatan = $nomor !== null ? "{$jenisDokumen} No. {$nomor}" : null;
+
+            if (MemoStatusService::ubah($memo, 'sakti', $tanggal, $catatan, $userId) === false) {
                 throw new \DomainException('Status anggaran memo tidak berubah.');
             }
         });
     }
 
+    // Koreksi jenis/nomor setelah SAKTI (status memo tidak berubah, hanya dicatat di log).
+    public static function ubahNomorSakti(string $memo, string $jenisDokumen, string $nomor, int $userId): void
+    {
+        DB::transaction(function () use ($memo, $jenisDokumen, $nomor, $userId) {
+            $row = self::kunci($memo);
+
+            if (!in_array($row->tahap, ['sakti', 'otp_ppk', 'ppspm'], true)) {
+                throw new \DomainException('Nomor hanya bisa diubah setelah memo diinput di SAKTI.');
+            }
+
+            $lama = trim(($row->jenis_dokumen ?? '-') . ' ' . ($row->nomor_spp_spby ?? ''));
+            $baru = "{$jenisDokumen} {$nomor}";
+            if ($lama === $baru) {
+                return;
+            }
+
+            DB::table('memo_progres')->where('memo_key', $memo)
+                ->update(['jenis_dokumen' => $jenisDokumen, 'nomor_spp_spby' => $nomor, 'updated_at' => now()]);
+
+            [$tipe, $id, $jenis] = MemoStatusService::parse($memo);
+            $status = self::statusAnggaran($memo) ?: 'sakti';
+
+            DB::table('memo_status_logs')->insert([
+                'memo_type' => $tipe,
+                'memo_id' => $id,
+                'jenis' => $jenis,
+                'dari' => $status,
+                'ke' => $status,
+                'alasan' => "Nomor SAKTI diubah: {$lama} → {$baru}",
+                'user_id' => $userId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+    }
     // Langkah 7 selesai: pengembalian ditutup, pengajuan yang masih menunggu otomatis ditolak.
     public static function selesaiOtp(string $memo): void
     {
@@ -160,10 +204,8 @@ class MemoTahapService
                     throw new \DomainException('Status anggaran memo tidak berubah, pengembalian dibatalkan.');
                 }
             }
-
             DB::table('memo_progres')->where('memo_key', $memo)
-                ->update(['tahap' => 'dikembalikan', 'updated_at' => now()]);
-
+                ->update(['tahap' => 'dikembalikan', 'jenis_dokumen' => null, 'nomor_spp_spby' => null, 'updated_at' => now()]);
             // Kalau memo kembali lewat K2/K3, pengajuan yang masih menunggu otomatis gugur.
             // (Pengajuan yang sedang disetujui sudah ditulis 'disetujui' lebih dulu oleh putuskan().)
             self::gugurkanPengajuan($memo, 'Memo sudah dikembalikan.');

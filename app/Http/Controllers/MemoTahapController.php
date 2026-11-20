@@ -68,11 +68,31 @@ class MemoTahapController extends Controller
 
     public function inputSakti(Request $request, string $memo)
     {
-        $data = $request->validate(['tanggal' => 'nullable|date']);
+        $data = $request->validate([
+            'tanggal' => 'nullable|date',
+            'jenis_dokumen' => 'required|in:SPP,SPBy',
+            'nomor_spp_spby' => 'required|string|max:100',
+        ], [
+            'jenis_dokumen.required' => 'Pilih SPP atau SPBy.',
+            'nomor_spp_spby.required' => 'Nomor SPP/SPBy wajib diisi.',
+        ]);
 
         return $this->jalankan(
-            fn() => MemoTahapService::inputSakti($memo, $data['tanggal'] ?? null, auth()->id()),
+            fn() => MemoTahapService::inputSakti($memo, $data['tanggal'] ?? null, auth()->id(), $data['jenis_dokumen'], $data['nomor_spp_spby']),
             'Memo tercatat di SAKTI.'
+        );
+    }
+
+    public function ubahNomorSakti(Request $request, string $memo)
+    {
+        $data = $request->validate([
+            'jenis_dokumen' => 'required|in:SPP,SPBy',
+            'nomor_spp_spby' => 'required|string|max:100',
+        ]);
+
+        return $this->jalankan(
+            fn() => MemoTahapService::ubahNomorSakti($memo, $data['jenis_dokumen'], trim($data['nomor_spp_spby']), auth()->id()),
+            'Nomor SAKTI diperbarui.'
         );
     }
 
@@ -138,4 +158,6 @@ class MemoTahapController extends Controller
             throw new \DomainException('Memo ini ditandai perlu nominatif. Buat minimal satu nominatif sebelum dikirim ke Keuangan.');
         }
     }
+
+
 }
