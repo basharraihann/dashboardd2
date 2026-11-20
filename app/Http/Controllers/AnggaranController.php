@@ -6,6 +6,7 @@ use App\Models\AnggaranItem;
 use App\Models\AnggaranUpload;
 use App\Services\AnggaranImportService;
 use App\Services\AnggaranUnitResolver;
+use App\Services\MakOutstandingService;
 use App\Services\MakSyncService;
 use App\Support\AnggaranExcel;
 use Illuminate\Http\Request;
@@ -29,7 +30,7 @@ class AnggaranController extends Controller
         $active = AnggaranUpload::where('is_active', true)->latest('id')->first();
 
         if (!$active) {
-            return response()->json(['upload' => null, 'items' => []]);
+            return response()->json(['upload' => null, 'items' => [], 'outstanding' => (object) []]);
         }
 
         // Pemetaan RO -> unit kerja dicocokkan di sini (saat data diambil), bukan saat import,
@@ -67,7 +68,42 @@ class AnggaranController extends Controller
                 'at' => $active->created_at->timezone(config('app.timezone'))->format('d/m/Y H:i'),
             ],
             'items' => $items,
+            // [kunci MAK => total outstanding]. Dipasang di baris Akun oleh halaman, lalu dijumlah ke atas.
+            'outstanding' => (object) $this->outstandingPerKunci(),
         ]);
+    }
+
+    /**
+     * Kunci MAK yang seragam antara memo dan tabel anggaran: 6 bagian terakhir kode MAK
+     * (Kegiatan.KRO.RO.Komponen.Sub.Akun), komponen di-pad 3 digit.
+     *   CL.7458.ABB.001.051.0A.521211  -> 7458.ABB.001.051.0A.521211
+     *   7458.ABB.001.51.0A.521211      -> 7458.ABB.001.051.0A.521211
+     * Harus sama persis dengan makKey() di resources/views/anggaran/index.blade.php.
+     */
+    private function kunciMak(string $mak): string
+    {
+        $p = array_slice(array_map('trim', explode('.', trim($mak))), -6);
+        if (count($p) === 6 && ctype_digit($p[3]) && strlen($p[3]) < 3) {
+            $p[3] = str_pad($p[3], 3, '0', STR_PAD_LEFT);
+        }
+
+        return implode('.', $p);
+    }
+
+    /** Total outstanding per kunci MAK, hanya yang > 0. */
+    private function outstandingPerKunci(): array
+    {
+        $hasil = [];
+        foreach (MakOutstandingService::perMak() as $mak => $total) {
+            $total = (int) $total;
+            if ($total <= 0) {
+                continue;
+            }
+            $k = $this->kunciMak((string) $mak);
+            $hasil[$k] = ($hasil[$k] ?? 0) + $total;
+        }
+
+        return $hasil;
     }
 
     public function export(Request $request)

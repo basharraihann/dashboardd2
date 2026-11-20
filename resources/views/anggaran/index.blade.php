@@ -8,7 +8,7 @@
         }
 
         .ang-scroll table {
-            min-width: 1000px;
+            min-width: 1100px;
         }
 
         @media (min-width: 1024px) {
@@ -362,14 +362,15 @@
                     <table class="w-full table-fixed text-[11px] leading-tight">
                         <colgroup>
                             <col style="width:13%">
-                            <col style="width:23.5%">
+                            <col style="width:20%">
                             <col style="width:9%">
                             <col style="width:10%">
-                            <col style="width:10%">
                             <col style="width:9%">
-                            <col style="width:10%">
-                            <col style="width:5.5%">
-                            <col style="width:10%">
+                            <col style="width:8%">
+                            <col style="width:9%">
+                            <col style="width:5%">
+                            <col style="width:9%">
+                            <col style="width:8%">
                         </colgroup>
                         <thead style="background:#2563eb" class="text-[11px] text-white sticky top-0 z-10">
                             <tr>
@@ -382,6 +383,7 @@
                                 <th class="text-right px-2 py-2 font-semibold">Real. s.d.</th>
                                 <th class="text-right px-2 py-2 font-semibold">%</th>
                                 <th class="text-right px-2 py-2 font-semibold">Sisa</th>
+                                <th class="text-right px-2 py-2 font-semibold">Outstanding</th>
                             </tr>
                         </thead>
                         <tbody id="ang-tb"></tbody>
@@ -487,6 +489,15 @@
             const padKode = (key, k) => (key === 'komp' && /^\d+$/.test(k) && k.length < 3) ? k.padStart(3, '0') : k;
             const numOrNull = (v) => (v === undefined || v === null || v === '') ? null : Number(v);
 
+            // ---- Outstanding (dari memo, nyambung ke MAK) ----
+            // OUT: kunci MAK -> total outstanding, dikirim server lewat /anggaran/data.
+            // Kunci = Kegiatan.KRO.RO.Komponen.Sub.Akun (6 bagian). Harus sama dengan kunciMak() di AnggaranController.
+            let OUT = {};
+            const makKey = (it) => {
+                const last = (s) => String(s ?? '').split('.').pop();
+                return [last(it.keg_kode), it.ro_kode, padKode('komp', String(it.komp_kode ?? '')), last(it.sub_kode), it.akun_kode].join('.');
+            };
+
             function vals(it) {
                 const lalu = numOrNull(it.realisasi_lalu), ini = numOrNull(it.realisasi_ini);
                 let sd = numOrNull(it.realisasi);
@@ -521,6 +532,8 @@
                                 ur: uraian.toLowerCase(),
                                 v: zero(), children: [], map: new Map(), parent: node,
                                 us: new Set(), ss: new Set(),
+                                // Outstanding melekat di level Akun (MAK); level atasnya dijumlah di bawah
+                                out: lv.key === 'akun' ? (Number(OUT[makKey(it)]) || 0) : null,
                             };
                             node.map.set(raw, c);
                             node.children.push(c);
@@ -538,10 +551,22 @@
                         kodes: [kode.toLowerCase()], ur: uraian.toLowerCase(),
                         v, children: [], parent: node,
                         us: new Set([it.unit]), ss: it.sub_unit ? new Set([it.sub_unit]) : new Set(),
+                        out: null,   // memo menempel di MAK, bukan di item
                     };
                     node.children.push(leaf);
                     byId.set(leaf.id, leaf);
                 });
+
+                // Jumlahkan outstanding dari Akun ke atas (Program sampai Sub Komponen). Item tidak ikut dijumlah.
+                (function sumOut(n) {
+                    if (n.lv && n.lv.key === 'item') return 0;
+                    if (n.lv && n.lv.key === 'akun') return n.out;
+                    let t = 0;
+                    n.children.forEach((c) => { t += sumOut(c); });
+                    if (n.depth >= 0) n.out = t;
+                    return t;
+                })(root);
+
                 return root;
             }
 
@@ -979,6 +1004,7 @@
                         <td class="${num} ${numBold}">${rp(v.sd)}</td>
                         <td class="${num}">${(pct * 100).toFixed(2).replace('.', ',')}%</td>
                         <td class="${num} ${numBold}">${rp(v.pagu - v.sd)}</td>
+                        <td class="${num} ${numBold} ${r.out > 0 ? 'text-amber-700' : ''}">${r.out > 0 ? rp(r.out) : dash}</td>
                     </tr>`;
                 }).join('');
 
@@ -1127,6 +1153,8 @@
                         $('ang-empty').classList.remove('hidden');
                         return;
                     }
+                    // Peta outstanding per MAK (kosong bila belum ada memo outstanding)
+                    OUT = d.outstanding || {};
                     // Server: unit (mis. "Asdep 1 D1") + induk (mis. "D1").
                     // Dashboard: unit = kelompok (induk), sub_unit = unit kerja di dalamnya.
                     items = d.items.map((it) => {
