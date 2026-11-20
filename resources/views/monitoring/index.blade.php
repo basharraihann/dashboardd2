@@ -5,7 +5,7 @@
         </h2>
     </x-slot>
 
-    @php
+   @php
         $rp = fn($n) => ($n < 0 ? '-Rp ' : 'Rp ') . number_format(abs((int) $n), 0, ',', '.');
 
         // Kelas dasar header kolom tabel
@@ -27,7 +27,8 @@
 
         $bisaKelola = auth()->user()?->can('kelola-anggaran');
 
-        // Tahap alur memo (dari tabel memo_progres)
+        // Tahap alur memo (dari tabel memo_progres). 'sp2d' bukan tahap di tabel,
+        // melainkan tampilan untuk memo yang statusnya sudah SP2D.
         $tahapLabel = [
             'draft' => 'Draft, belum dikirim',
             'dikirim' => 'Menunggu K2',
@@ -35,6 +36,7 @@
             'sakti' => 'Menunggu K3',
             'otp_ppk' => 'OTP PPK',
             'ppspm' => 'PPSPM, menunggu pencairan',
+            'sp2d' => 'SP2D, uang sudah cair',
             'dikembalikan' => 'Dikembalikan ke unit',
         ];
         $tahapDot = fn($t) => match ($t) {
@@ -43,16 +45,9 @@
             'sakti' => 'bg-sky-500',
             'otp_ppk' => 'bg-violet-500',
             'ppspm' => 'bg-emerald-500',
+            'sp2d' => 'bg-emerald-500',
             'dikembalikan' => 'bg-red-500',
             default => 'bg-gray-400',
-        };
-
-        // Berkas fisik (tampilan saja): posisi berkas menurut tahap memo.
-        // Tim Keuangan = sedang di keuangan, PPSPM = di tahap PPSPM, Unit = masih/kembali di unit kerja.
-        $berkasFisik = fn($t) => match ($t) {
-            'dikirim', 'lolos_spk', 'sakti', 'otp_ppk' => ['Tim Keuangan', 'bg-blue-50 text-blue-700 border-blue-200'],
-            'ppspm' => ['PPSPM', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-            default => ['Unit', 'bg-gray-50 text-gray-700 border-gray-200'],
         };
 
         $antreanSp2d = $antreanSp2d ?? collect();
@@ -82,6 +77,16 @@
             ->whereIn('memo_key', $semuaMemo->pluck('id')->filter()->all())
             ->get(['memo_key', 'jenis_dokumen', 'nomor_spp_spby'])
             ->keyBy('memo_key');
+
+        // Posisi berkas fisik terakhir per memo. Tabel terpisah, tidak terkait tahap memo.
+        $berkasPerMemo = \Illuminate\Support\Facades\DB::table('memo_berkas_fisik')
+            ->whereIn('memo_key', $semuaMemo->pluck('id')->filter()->all())
+            ->orderBy('id')->get()->groupBy('memo_key')
+            ->map(fn($g) => $g->last()->posisi);
+
+        // Kelas untuk bar filter
+        $fl = 'block mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500';
+        $fi = 'rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none';
     @endphp
 
     <div class="py-6 px-4 sm:px-6 lg:px-8 max-w-[96rem] mx-auto space-y-5">
@@ -132,6 +137,55 @@
                     </div>
                 </div>
 
+                {{-- Filter & pencarian --}}
+                <div class="px-4 pb-4 sm:px-6">
+                    <div id="filter-bar" class="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                        <div class="grow basis-64">
+                            <label for="f-cari" class="{{ $fl }}">Cari</label>
+                            <input id="f-cari" type="search" autocomplete="off"
+                                placeholder="Nomor memo, kegiatan, MAK, PIC, nomor SPP/SPBy, unit"
+                                class="w-full {{ $fi }}">
+                        </div>
+                        <div>
+                            <label for="f-status" class="{{ $fl }}">Status</label>
+                            <select id="f-status" class="{{ $fi }}">
+                                <option value="">Semua</option>
+                                @foreach ($statusLabel as $k => $v)
+                                    @continue($k === 'batal')
+                                    <option value="{{ $k }}">{{ $v }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="f-tahap" class="{{ $fl }}">Progres</label>
+                            <select id="f-tahap" class="{{ $fi }}">
+                                <option value="">Semua</option>
+                                @foreach ($tahapLabel as $k => $v)
+                                    <option value="{{ $k }}">{{ $v }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="f-dok" class="{{ $fl }}">SPP/SPBy</label>
+                            <select id="f-dok" class="{{ $fi }}">
+                                <option value="">Semua</option>
+                                <option value="SPP">SPP</option>
+                                <option value="SPBy">SPBy</option>
+                                <option value="kosong">Nomor belum diisi</option>
+                            </select>
+                        </div>
+                        <label class="inline-flex items-center gap-1.5 pb-1.5 text-xs text-gray-700 cursor-pointer">
+                            <input id="f-pengajuan" type="checkbox" class="rounded border-gray-300"> Ada pengajuan
+                        </label>
+                        <label class="inline-flex items-center gap-1.5 pb-1.5 text-xs text-gray-700 cursor-pointer">
+                            <input id="f-lama" type="checkbox" class="rounded border-gray-300"> &gt; 30 hari
+                        </label>
+                        <button type="button" id="f-reset"
+                            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Reset</button>
+                    </div>
+                    <p id="f-info" class="mt-2 text-xs text-gray-500" aria-live="polite"></p>
+                </div>
+
                 <div class="border-t border-gray-200 rounded-b-2xl overflow-hidden">
                     {{-- Header kolom --}}
                     <div
@@ -157,7 +211,7 @@
                                 $js = (int) $u['sakti_jumlah'];
                                 $jp = (int) $u['sp2d_jumlah'];
                             @endphp
-                            <div>
+                            <div class="js-unit">
                                 <div class="pu-grid px-4 sm:px-6 py-3.5 hover:bg-gray-50 transition">
                                     {{-- Unit --}}
                                     <div class="min-w-0">
@@ -216,7 +270,9 @@
 
                                     {{-- Detail --}}
                                     <div class="md:text-right">
-                                        <button type="button" aria-expanded="false" data-target="unit-detail-{{ $loop->index }}"
+                                        <button type="button" aria-expanded="false"
+                                            data-key="{{ $u['unit'] ?: '__none' }}"
+                                            data-target="unit-detail-{{ $loop->index }}"
                                             class="js-unit-toggle rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-100 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                                             <span class="js-label">Show</span>
                                         </button>
@@ -263,8 +319,33 @@
                                                             $logId = 'log-' . $loop->parent->index . '-' . $loop->index;
                                                             $spp = $sppPerMemo->get($m['id']);
                                                             $adaSpp = $spp && filled($spp->nomor_spp_spby);
+
+                                                            // Memo yang statusnya sudah SP2D ditampilkan sebagai SP2D di kolom Progres,
+                                                            // walau memo_progres.tahap masih 'ppspm'. Logika tombol tetap pakai $tahap.
+                                                            $tahapTampil = $st === 'sp2d' ? 'sp2d' : $tahap;
+
+                                                            // Untuk filter SPP/SPBy: jenis dokumen, atau 'kosong' bila sudah lewat SAKTI tapi nomor belum ada
+                                                            $dok = $adaSpp
+                                                                ? $spp->jenis_dokumen
+                                                                : (in_array($tahapTampil, ['sakti', 'otp_ppk', 'ppspm', 'sp2d'], true) ? 'kosong' : '-');
+
+                                                            // Teks pencarian (huruf kecil)
+                                                            $cari = \Illuminate\Support\Str::lower(implode(' ', array_filter([
+                                                                $m['nomor_memo'],
+                                                                $m['uraian'] ?? '',
+                                                                $m['mak'] ?? '',
+                                                                $m['pic'] ?? '',
+                                                                $m['jenis_label'] ?? '',
+                                                                $spp->nomor_spp_spby ?? '',
+                                                                $u['label'],
+                                                            ])));
                                                         @endphp
-                                                        <tr class="hover:bg-blue-50/30 transition">
+                                                        <tr class="js-memo-row hover:bg-blue-50/30 transition"
+                                                            data-cari="{{ $cari }}" data-status="{{ $st }}"
+                                                            data-tahap="{{ $tahapTampil }}" data-dok="{{ $dok }}"
+                                                            data-pengajuan="{{ $pengajuan ? 1 : 0 }}"
+                                                            data-umur="{{ (int) ($m['umur'] ?? 0) }}"
+                                                            data-log="{{ $logId }}">
                                                             <td class="pl-4 pr-2 py-2.5 align-top">
                                                                 <p class="text-xs font-semibold text-gray-900 tabular-nums break-words">
                                                                     {!! str_replace(['.', '/'], ['.<wbr>', '/<wbr>'], e($m['nomor_memo'])) !!}
@@ -317,10 +398,10 @@
                                                             {{-- Progres + aksi --}}
                                                             <td class="px-2 py-2.5 align-top">
                                                                 <p
-                                                                    class="inline-flex items-start gap-1.5 text-[11px] font-medium leading-snug {{ $tahap === 'dikembalikan' ? 'text-red-600' : 'text-gray-600' }}">
+                                                                    class="inline-flex items-start gap-1.5 text-[11px] font-medium leading-snug {{ $tahapTampil === 'dikembalikan' ? 'text-red-600' : 'text-gray-600' }}">
                                                                     <span
-                                                                        class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full {{ $tahapDot($tahap) }}"></span>
-                                                                    <span>{{ $tahapLabel[$tahap] ?? $tahap }}</span>
+                                                                        class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full {{ $tahapDot($tahapTampil) }}"></span>
+                                                                    <span>{{ $tahapLabel[$tahapTampil] ?? $tahapTampil }}</span>
                                                                 </p>
 
                                                                 {{-- SPP / SPBy yang diinput saat Input SAKTI --}}
@@ -395,11 +476,13 @@
                                                                         @if ($tahap === 'ppspm' && $st === 'sakti')
                                                                             <form method="POST" action="{{ route('monitoring.status-massal') }}"
                                                                                 class="js-aksi-form m-0 flex flex-wrap items-center gap-1.5"
-                                                                                data-konfirmasi="Tandai memo {{ $m['nomor_memo'] }} sudah cair (SP2D)?">
+                                                                                data-memo="{{ $m['nomor_memo'] }}"
+                                                                                data-nominal="{{ $rp($m['nominal']) }}">
                                                                                 @csrf
                                                                                 <input type="hidden" name="status" value="sp2d">
                                                                                 <input type="hidden" name="ids[]" value="{{ $m['id'] }}">
-                                                                                <input type="date" name="tanggal"
+                                                                                <input type="date" name="tanggal" required
+                                                                                    max="{{ now()->toDateString() }}"
                                                                                     value="{{ now()->toDateString() }}" title="Tanggal cair"
                                                                                     aria-label="Tanggal cair"
                                                                                     class="w-full min-w-0 border border-gray-200 rounded-md px-1.5 py-1 text-[11px] text-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none">
@@ -423,23 +506,28 @@
                                                                 @endif
                                                             </td>
 
-                                                            {{-- Berkas Fisik: hanya tampilan, belum terhubung ke data/aksi apa pun --}}
-                                                            <td class="px-2 py-2.5 align-top">
-                                                                @php
-                                                                    $berkas = $berkasFisik($tahap);
-                                                                @endphp
-                                                                {{-- Pilihan saja: tanpa name/form, tidak ada yang dikirim atau disimpan --}}
-                                                                <select aria-label="Berkas fisik memo {{ $m['nomor_memo'] }}"
-                                                                    class="js-berkas w-full min-w-0 rounded-md border py-1 pl-1.5 pr-6 text-[11px] font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 {{ $berkas[1] }}">
-                                                                    @foreach (['Tim Keuangan', 'PPSPM', 'Unit'] as $opsiBerkas)
-                                                                        <option value="{{ $opsiBerkas }}" @selected($opsiBerkas === $berkas[0])>{{ $opsiBerkas }}</option>
-                                                                    @endforeach
-                                                                </select>
-                                                            </td>
-
+                                                           {{-- Berkas Fisik: posisi disimpan sendiri, tidak terkait tahap memo --}}
+<td class="px-2 py-2.5 align-top">
+    @php $berkas = $berkasPerMemo->get($m['id'], ''); @endphp
+    <select aria-label="Berkas fisik memo {{ $m['nomor_memo'] }}"
+        data-url="{{ route('memo.berkas-fisik', $m['id']) }}"
+        data-awal="{{ $berkas }}"
+        @disabled(!$bisaKelola)
+        class="js-berkas w-full min-w-0 rounded-md border py-1 pl-1.5 pr-6 text-[11px] font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 {{ match ($berkas) {
+            'Tim Keuangan' => 'bg-blue-50 text-blue-700 border-blue-200',
+            'PPSPM' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            default => 'bg-gray-50 text-gray-700 border-gray-200',
+        } }}">
+        <option value="" disabled @selected($berkas === '')>Belum diatur</option>
+        @foreach (['Tim Keuangan', 'PPSPM', 'Unit'] as $o)
+            <option value="{{ $o }}" @selected($o === $berkas)>{{ $o }}</option>
+        @endforeach
+    </select>
+</td>
                                                             {{-- Log --}}
                                                             <td class="pl-2 pr-4 py-2.5 align-top text-right">
-                                                                <button type="button" data-target="{{ $logId }}" aria-expanded="false"
+                                                                <button type="button" data-key="{{ $m['nomor_memo'] }}"
+                                                                    data-target="{{ $logId }}" aria-expanded="false"
                                                                     @disabled($logs->isEmpty())
                                                                     class="js-log-toggle rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                                                                     Log <span
@@ -505,33 +593,98 @@
 
     </div>
 
+    {{-- Dialog konfirmasi pencairan (SP2D) --}}
+    <dialog id="dlg-sp2d" aria-labelledby="dlg-sp2d-judul"
+        class="m-auto w-[min(92vw,26rem)] rounded-2xl border border-gray-200 bg-white p-0 shadow-xl backdrop:bg-gray-900/50">
+        <div class="px-5 pt-5">
+            <h3 id="dlg-sp2d-judul" class="text-base font-bold text-gray-900">Konfirmasi pencairan (SP2D)</h3>
+            <dl class="mt-3 space-y-1.5 text-sm">
+                <div class="flex justify-between gap-4">
+                    <dt class="text-gray-500">Memo</dt>
+                    <dd id="dlg-sp2d-memo" class="font-semibold text-gray-900 text-right break-all"></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-gray-500">Nominal</dt>
+                    <dd id="dlg-sp2d-nominal" class="font-semibold text-gray-900 tabular-nums"></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-gray-500">Tanggal cair</dt>
+                    <dd id="dlg-sp2d-tgl" class="font-semibold text-gray-900"></dd>
+                </div>
+            </dl>
+            <p class="mt-3 text-xs text-gray-500">Status memo akan berubah menjadi SP2D. Pastikan uang sudah benar-benar
+                cair.</p>
+        </div>
+        <div class="mt-4 flex justify-end gap-2 border-t border-gray-100 px-5 py-3">
+            <button type="button" id="dlg-sp2d-batal"
+                class="rounded-lg border border-gray-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Batal</button>
+            <button type="button" id="dlg-sp2d-ok"
+                class="btn-utama rounded-lg px-3.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">Ya,
+                tandai cair</button>
+        </div>
+    </dialog>
+
     <script>
         (function () {
-            // Show / Hide daftar memo per unit
+            const S = window.sessionStorage;
+            const K = { unit: 'mon.unit', log: 'mon.log', filter: 'mon.filter', scroll: 'mon.scroll' };
+            const baca = (k, d) => { try { const v = JSON.parse(S.getItem(k)); return v === null ? d : v; } catch (e) { return d; } };
+            const simpan = (k, v) => { try { S.setItem(k, JSON.stringify(v)); } catch (e) { } };
+            const $ = (id) => document.getElementById(id);
+
+            const unitBuka = new Set(baca(K.unit, []));
+            const logBuka = new Set(baca(K.log, []));
+
+            // ---------- Tombol "Selengkapnya" hanya bila teks terpotong (diukur saat panel terbuka)
+            function ukurKegiatan(panel) {
+                panel.querySelectorAll('.js-kegiatan').forEach(function (p) {
+                    const t = p.parentElement.querySelector('.js-kegiatan-toggle');
+                    if (!t) return;
+                    const terpotong = p.classList.contains('kegiatan-clamp') && p.scrollHeight > p.clientHeight + 1;
+                    const sedangBuka = !p.classList.contains('kegiatan-clamp');
+                    t.classList.toggle('hidden', !(terpotong || sedangBuka));
+                });
+            }
+
+            // ---------- Show / Hide unit
+            function setUnit(btn, buka, catat) {
+                const panel = document.getElementById(btn.dataset.target);
+                if (!panel) return;
+                panel.classList.toggle('hidden', !buka);
+                btn.setAttribute('aria-expanded', buka ? 'true' : 'false');
+                const label = btn.querySelector('.js-label');
+                if (label) label.textContent = buka ? 'Hide' : 'Show';
+                if (buka) ukurKegiatan(panel);
+                if (catat) {
+                    buka ? unitBuka.add(btn.dataset.key) : unitBuka.delete(btn.dataset.key);
+                    simpan(K.unit, Array.from(unitBuka));
+                }
+            }
             document.querySelectorAll('.js-unit-toggle').forEach(function (btn) {
                 btn.addEventListener('click', function () {
-                    const panel = document.getElementById(btn.dataset.target);
-                    if (!panel) return;
-                    const terbuka = panel.classList.toggle('hidden') === false;
-                    btn.setAttribute('aria-expanded', terbuka ? 'true' : 'false');
-                    const label = btn.querySelector('.js-label');
-                    if (label) label.textContent = terbuka ? 'Hide' : 'Show';
-
-                    // Tombol "Selengkapnya" hanya perlu kalau teksnya benar-benar terpotong.
-                    // Diukur saat panel terbuka, karena saat tersembunyi lebarnya 0.
-                    if (terbuka) {
-                        panel.querySelectorAll('.js-kegiatan').forEach(function (p) {
-                            const t = p.parentElement.querySelector('.js-kegiatan-toggle');
-                            if (!t) return;
-                            const terpotong = p.classList.contains('kegiatan-clamp') && p.scrollHeight > p.clientHeight + 1;
-                            const sedangBuka = !p.classList.contains('kegiatan-clamp');
-                            t.classList.toggle('hidden', !(terpotong || sedangBuka));
-                        });
-                    }
+                    setUnit(btn, document.getElementById(btn.dataset.target).classList.contains('hidden'), true);
                 });
             });
 
-            // Kegiatan: Selengkapnya / Tutup
+            // ---------- Log memo
+            function setLog(btn, buka, catat) {
+                const row = document.getElementById(btn.dataset.target);
+                if (!row) return;
+                row.classList.toggle('hidden', !buka);
+                btn.setAttribute('aria-expanded', buka ? 'true' : 'false');
+                btn.classList.toggle('bg-gray-100', buka);
+                if (catat) {
+                    buka ? logBuka.add(btn.dataset.key) : logBuka.delete(btn.dataset.key);
+                    simpan(K.log, Array.from(logBuka));
+                }
+            }
+            document.querySelectorAll('.js-log-toggle').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    setLog(b, document.getElementById(b.dataset.target).classList.contains('hidden'), true);
+                });
+            });
+
+            // ---------- Kegiatan: Selengkapnya / Tutup
             document.querySelectorAll('.js-kegiatan-toggle').forEach(function (t) {
                 t.addEventListener('click', function () {
                     const p = t.parentElement.querySelector('.js-kegiatan');
@@ -540,39 +693,155 @@
                 });
             });
 
-            // Log: buka / tutup riwayat memo
-            document.querySelectorAll('.js-log-toggle').forEach(function (b) {
-                b.addEventListener('click', function () {
-                    const row = document.getElementById(b.dataset.target);
-                    if (!row) return;
-                    const terbuka = row.classList.toggle('hidden') === false;
-                    b.setAttribute('aria-expanded', terbuka ? 'true' : 'false');
-                    b.classList.toggle('bg-gray-100', terbuka);
-                });
-            });
+           // ---------- Berkas Fisik: simpan posisi ke server
+const warnaBerkas = {
+    '': ['bg-gray-50', 'text-gray-700', 'border-gray-200'],
+    'Tim Keuangan': ['bg-blue-50', 'text-blue-700', 'border-blue-200'],
+    'PPSPM': ['bg-emerald-50', 'text-emerald-700', 'border-emerald-200'],
+    'Unit': ['bg-gray-50', 'text-gray-700', 'border-gray-200'],
+};
+const semuaWarna = [].concat.apply([], Object.values(warnaBerkas));
+const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 
-            // Berkas Fisik: ganti warna sesuai pilihan (hanya tampilan)
-            const warnaBerkas = {
-                'Tim Keuangan': ['bg-blue-50', 'text-blue-700', 'border-blue-200'],
-                'PPSPM': ['bg-emerald-50', 'text-emerald-700', 'border-emerald-200'],
-                'Unit': ['bg-gray-50', 'text-gray-700', 'border-gray-200'],
+document.querySelectorAll('.js-berkas').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+        sel.classList.remove.apply(sel.classList, semuaWarna);
+        sel.classList.add.apply(sel.classList, warnaBerkas[sel.value] || warnaBerkas['']);
+        fetch(sel.dataset.url, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ posisi: sel.value }),
+        }).then(function (r) {
+            if (!r.ok) throw new Error();
+            sel.dataset.awal = sel.value;
+        }).catch(function () {
+            sel.value = sel.dataset.awal;
+            sel.classList.remove.apply(sel.classList, semuaWarna);
+            sel.classList.add.apply(sel.classList, warnaBerkas[sel.value] || warnaBerkas['']);
+            alert('Gagal menyimpan posisi berkas fisik.');
+        });
+    });
+});
+
+            // ---------- Filter
+            const F = {
+                cari: $('f-cari'), status: $('f-status'), tahap: $('f-tahap'),
+                dok: $('f-dok'), pengajuan: $('f-pengajuan'), lama: $('f-lama'),
             };
-            const semuaWarna = [].concat.apply([], Object.values(warnaBerkas));
-            document.querySelectorAll('.js-berkas').forEach(function (sel) {
-                sel.addEventListener('change', function () {
-                    sel.classList.remove.apply(sel.classList, semuaWarna);
-                    sel.classList.add.apply(sel.classList, warnaBerkas[sel.value] || warnaBerkas['Unit']);
-                });
-            });
+            const adaFilter = !!F.cari;
 
-            // Form "Tandai cair": konfirmasi sebelum kirim
-            document.querySelectorAll('.js-aksi-form').forEach(function (f) {
-                f.addEventListener('submit', function (e) {
-                    if (!window.confirm(f.dataset.konfirmasi || 'Ubah status memo ini?')) {
-                        e.preventDefault();
+            function nilaiFilter() {
+                return {
+                    cari: F.cari.value, status: F.status.value, tahap: F.tahap.value, dok: F.dok.value,
+                    pengajuan: F.pengajuan.checked, lama: F.lama.checked,
+                };
+            }
+
+            function terapkan() {
+                const v = nilaiFilter();
+                const q = v.cari.trim().toLowerCase();
+                const aktif = !!(q || v.status || v.tahap || v.dok || v.pengajuan || v.lama);
+                let total = 0, cocok = 0;
+
+                document.querySelectorAll('.js-unit').forEach(function (unit) {
+                    let n = 0;
+                    unit.querySelectorAll('.js-memo-row').forEach(function (tr) {
+                        const d = tr.dataset;
+                        const ok = (!q || d.cari.indexOf(q) !== -1)
+                            && (!v.status || d.status === v.status)
+                            && (!v.tahap || d.tahap === v.tahap)
+                            && (!v.dok || d.dok === v.dok)
+                            && (!v.pengajuan || d.pengajuan === '1')
+                            && (!v.lama || Number(d.umur) > 30);
+                        tr.hidden = !ok;
+                        const log = document.getElementById(d.log);
+                        if (log) log.hidden = !ok;
+                        total++;
+                        if (ok) { n++; cocok++; }
+                    });
+                    unit.hidden = aktif && n === 0;
+                    // Saat memfilter, buka unit yang punya hasil supaya langsung terlihat
+                    if (aktif && n > 0) {
+                        const btn = unit.querySelector('.js-unit-toggle');
+                        if (btn) setUnit(btn, true, false);
                     }
                 });
+
+                $('f-info').textContent = !aktif
+                    ? total + ' memo'
+                    : (cocok === 0 ? 'Tidak ada memo yang cocok dengan filter.' : 'Menampilkan ' + cocok + ' dari ' + total + ' memo.');
+                simpan(K.filter, v);
+            }
+
+            if (adaFilter) {
+                const awal = baca(K.filter, null);
+                if (awal) {
+                    F.cari.value = awal.cari || ''; F.status.value = awal.status || ''; F.tahap.value = awal.tahap || '';
+                    F.dok.value = awal.dok || ''; F.pengajuan.checked = !!awal.pengajuan; F.lama.checked = !!awal.lama;
+                }
+                let timer;
+                F.cari.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(terapkan, 150); });
+                [F.status, F.tahap, F.dok, F.pengajuan, F.lama].forEach(function (el) { el.addEventListener('change', terapkan); });
+                $('f-reset').addEventListener('click', function () {
+                    F.cari.value = ''; F.status.value = ''; F.tahap.value = ''; F.dok.value = '';
+                    F.pengajuan.checked = false; F.lama.checked = false;
+                    terapkan();
+                });
+            }
+
+            // ---------- Simpan posisi scroll supaya halaman tidak lompat ke atas setelah aksi
+            function simpanKonteks() { simpan(K.scroll, { y: window.scrollY, t: Date.now() }); }
+            window.addEventListener('pagehide', simpanKonteks);
+
+            // ---------- Dialog konfirmasi SP2D
+            const dlg = $('dlg-sp2d');
+            let formTertunda = null;
+            const tglPanjang = (iso) => new Date(iso + 'T00:00:00')
+                .toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            function kirim() {
+                if (!formTertunda) return;
+                simpanKonteks();
+                formTertunda.submit(); // submit() tidak memicu event submit lagi, jadi tidak looping
+            }
+
+            document.querySelectorAll('.js-aksi-form').forEach(function (f) {
+                f.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    const tgl = f.querySelector('[name="tanggal"]');
+                    if (tgl && !tgl.value) { tgl.focus(); return; }
+                    formTertunda = f;
+                    if (!dlg || typeof dlg.showModal !== 'function') {
+                        if (window.confirm('Tandai memo ' + (f.dataset.memo || '') + ' sudah cair (SP2D)?')) kirim();
+                        return;
+                    }
+                    $('dlg-sp2d-memo').textContent = f.dataset.memo || '-';
+                    $('dlg-sp2d-nominal').textContent = f.dataset.nominal || '-';
+                    $('dlg-sp2d-tgl').textContent = tgl && tgl.value ? tglPanjang(tgl.value) : '-';
+                    $('dlg-sp2d-ok').disabled = false;
+                    dlg.showModal();
+                });
             });
+
+            if (dlg) {
+                $('dlg-sp2d-ok').addEventListener('click', function () {
+                    this.disabled = true; // cegah klik ganda
+                    kirim();
+                });
+                $('dlg-sp2d-batal').addEventListener('click', function () { formTertunda = null; dlg.close(); });
+                dlg.addEventListener('cancel', function () { formTertunda = null; });
+            }
+
+            // ---------- Pulihkan keadaan setelah halaman dimuat ulang
+            document.querySelectorAll('.js-unit-toggle').forEach(function (b) { if (unitBuka.has(b.dataset.key)) setUnit(b, true, false); });
+            document.querySelectorAll('.js-log-toggle').forEach(function (b) { if (logBuka.has(b.dataset.key)) setLog(b, true, false); });
+            if (adaFilter) terapkan();
+
+            const sc = baca(K.scroll, null);
+            if (sc && Date.now() - sc.t < 15000) {
+                requestAnimationFrame(function () { window.scrollTo(0, sc.y); });
+            }
+            try { S.removeItem(K.scroll); } catch (e) { }
         })();
     </script>
 
@@ -585,7 +854,7 @@
             overflow: hidden;
         }
 
-/* Tombol utama: gradasi biru yang sama dengan "Kirim ke Keuangan" di halaman memo */
+        /* Tombol utama: gradasi biru yang sama dengan "Kirim ke Keuangan" di halaman memo */
         .btn-utama {
             background-image: linear-gradient(to bottom, #2563eb, #1d4ed8);
             background-color: #1d4ed8;
@@ -602,6 +871,11 @@
 
         .btn-utama:active {
             transform: translateY(1px);
+        }
+
+        .btn-utama:disabled {
+            opacity: .6;
+            cursor: default;
         }
 
         /* ===== Progres per unit: baris unit dengan 6 kolom (di layar kecil menumpuk) ===== */
@@ -628,6 +902,5 @@
                 display: grid;
             }
         }
-
     </style>
 </x-app-layout>

@@ -15,6 +15,7 @@ use App\Http\Controllers\NominatifCustomController;
 use App\Http\Controllers\PegawaiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\BerkasFisikController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn() => redirect()->route('dashboard'));
@@ -128,6 +129,8 @@ Route::middleware('auth')->group(function () {
                 Route::post('{memo}/input-sakti', 'inputSakti')->where('memo', $pola)->name('input-sakti');
                 Route::post('{memo}/ubah-nomor-sakti', 'ubahNomorSakti')->where('memo', $pola)->name('ubah-nomor-sakti');
                 Route::post('{memo}/selesai-otp', 'selesaiOtp')->where('memo', $pola)->name('selesai-otp');
+                Route::post('{memo}/berkas-fisik', [BerkasFisikController::class, 'simpan'])
+                    ->name('berkas-fisik');
             });
         });
 
