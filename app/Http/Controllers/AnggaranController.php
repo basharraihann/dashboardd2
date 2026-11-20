@@ -17,9 +17,11 @@ use Throwable;
 
 class AnggaranController extends Controller
 {
+    /** Nama unit untuk item yang belum dipetakan (sama dengan BELUM di halaman Anggaran). */
+    private const BELUM_DIPETAKAN = 'Belum dipetakan';
+
     public function index()
     {
-
         $canUpload = (bool) auth()->user()?->isAdmin();
 
         return view('anggaran.index', compact('canUpload'));
@@ -53,8 +55,8 @@ class AnggaranController extends Controller
                 'item_kode',
                 'item_uraian',
                 'pagu',
-                'realisasi_lalu',   // baru
-                'realisasi_ini',    // baru
+                'realisasi_lalu',
+                'realisasi_ini',
                 'realisasi',
             ])
             ->map(fn($i) => $i->toArray() + $resolver->resolve($i)) // + 'unit', 'induk', 'sub_unit'
@@ -78,7 +80,8 @@ class AnggaranController extends Controller
      * (Kegiatan.KRO.RO.Komponen.Sub.Akun), komponen di-pad 3 digit.
      *   CL.7458.ABB.001.051.0A.521211  -> 7458.ABB.001.051.0A.521211
      *   7458.ABB.001.51.0A.521211      -> 7458.ABB.001.051.0A.521211
-     * Harus sama persis dengan makKey() di resources/views/anggaran/index.blade.php.
+     * Harus sama persis dengan makKey() di resources/views/anggaran/index.blade.php
+     * dan AnggaranExcel::makKey().
      */
     private function kunciMak(string $mak): string
     {
@@ -116,19 +119,22 @@ class AnggaranController extends Controller
                 ->orderBy('id')
                 ->get();
 
-            // Filter dari halaman monitor (opsional): unit = kelompok/induk (mis. D1),
-            // sub_unit = unit kerja di dalamnya (mis. "Asdep 1 D1"; "D1 (langsung)" = langsung ke Deputi).
-            $induk = trim((string) $request->query('unit', ''));
+            // Filter dari halaman monitor (opsional). unit = kelompok/induk (mis. D1), bisa lebih dari satu
+            // dipisah koma ("D1,D2,BIRO UHM"). sub_unit = unit kerja di dalamnya (mis. "Asdep 1 D1";
+            // "D1 (langsung)" = langsung ke Deputi).
+            $induks = array_values(array_filter(array_map('trim', explode(',', (string) $request->query('unit', '')))));
             $subUnit = trim((string) $request->query('sub_unit', ''));
-            if ($induk !== '' || $subUnit !== '') {
+            if ($induks !== [] || $subUnit !== '') {
                 $resolver = app(AnggaranUnitResolver::class);
-                $items = $items->filter(function ($i) use ($resolver, $induk, $subUnit) {
+                $items = $items->filter(function ($i) use ($resolver, $induks, $subUnit) {
                     $m = $resolver->resolve($i);
+                    $unit = $m['unit'] ?: self::BELUM_DIPETAKAN;
+                    $induk = $m['induk'] ?: $unit;
 
-                    return ($induk === '' || $m['induk'] === $induk)
+                    return ($induks === [] || in_array($induk, $induks, true))
                         && ($subUnit === ''
-                            || $m['unit'] === $subUnit
-                            || $m['unit'] . ' (langsung)' === $subUnit);
+                            || $unit === $subUnit
+                            || $unit . ' (langsung)' === $subUnit);
                 })->values();
             }
         }
@@ -136,7 +142,8 @@ class AnggaranController extends Controller
         return AnggaranExcel::download(
             $items,
             $activeUpload,
-            $request->only(['keg', 'ro', 'komp', 'sub', 'akun', 'q', 'level'])
+            $request->only(['keg', 'ro', 'komp', 'sub', 'akun', 'q', 'level']),
+            $this->outstandingPerKunci()
         );
     }
 
@@ -161,11 +168,13 @@ class AnggaranController extends Controller
     {
         $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:20480'],
-            'per_tanggal' => ['nullable', 'date'],
+            'per_tanggal' => ['required', 'date'],
         ], [
             'file.required' => 'Pilih file Excel terlebih dahulu.',
             'file.mimes' => 'File harus berformat .xlsx atau .xls.',
             'file.max' => 'Ukuran file maksimal 20 MB.',
+            'per_tanggal.required' => 'Isi tanggal laporan terlebih dahulu.',
+            'per_tanggal.date' => 'Tanggal laporan tidak valid.',
         ]);
 
         $file = $request->file('file');
@@ -187,11 +196,8 @@ class AnggaranController extends Controller
             Log::warning('File asli anggaran gagal disimpan: ' . $e->getMessage());
         }
 
-        // Tanggal laporan: input manual, kalau kosong ditebak dari nama file (ddmmyy).
-        $tgl = $request->filled('per_tanggal')
-            ? $request->input('per_tanggal')
-            : MakSyncService::tanggalDariNamaFile($file->getClientOriginalName())?->toDateString();
-        $upload->update(['per_tanggal' => $tgl]);
+        // Tanggal laporan wajib diisi di form (sudah divalidasi di atas), tidak lagi ditebak dari nama file.
+        $upload->update(['per_tanggal' => $request->input('per_tanggal')]);
 
         $pesan = "Data anggaran diperbarui: {$upload->jumlah_item} item ({$upload->periode}).";
         try {

@@ -151,15 +151,16 @@
                         <p class="mt-2 text-sm text-red-600" role="alert">{{ $message }}</p>
                     @enderror
 
-                    {{-- Tanggal laporan (opsional) --}}
+                    {{-- Tanggal laporan (wajib) --}}
                     <div class="mt-4">
                         <label for="up-tgl" class="block text-sm font-medium text-slate-700">
-                            Tanggal laporan <span class="font-normal text-slate-400">(opsional)</span>
+                            Tanggal laporan <span class="text-red-500">*</span>
                         </label>
-                        <input id="up-tgl" type="date" name="per_tanggal" value="{{ old('per_tanggal') }}"
+                        <input id="up-tgl" type="date" name="per_tanggal" value="{{ old('per_tanggal') }}" required
                             class="mt-1 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                        <p class="mt-1 text-xs text-slate-400">Kosongkan untuk diambil dari nama file, misalnya 021126
-                            jadi 2 Nov 2026. Tanggal ini dipakai untuk menghitung sisa anggaran MAK.</p>
+                        <p class="mt-1 text-xs text-slate-400">Tanggal laporan ditarik dari SAKTI. Dipakai untuk
+                            menandai
+                            data MAK dan sisa anggarannya.</p>
                         @error('per_tanggal')
                             <p class="mt-1 text-sm text-red-600" role="alert">{{ $message }}</p>
                         @enderror
@@ -231,12 +232,14 @@
                         <div class="flex items-start justify-between gap-4 py-2.5">
                             <dt class="text-slate-500">Jumlah item</dt>
                             <dd class="text-right tabular-nums text-slate-800">
-                                {{ number_format($active->jumlah_item, 0, ',', '.') }}</dd>
+                                {{ number_format($active->jumlah_item, 0, ',', '.') }}
+                            </dd>
                         </div>
                         <div class="flex items-start justify-between gap-4 py-2.5">
                             <dt class="text-slate-500">Total pagu</dt>
                             <dd class="text-right font-semibold tabular-nums text-slate-900">Rp
-                                {{ number_format($active->total_pagu, 0, ',', '.') }}</dd>
+                                {{ number_format($active->total_pagu, 0, ',', '.') }}
+                            </dd>
                         </div>
                     </dl>
                 @else
@@ -288,9 +291,11 @@
                                 </td>
                                 <td class="px-4 py-3 align-top text-slate-700">{{ $u->uploader->name ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right align-top tabular-nums text-slate-700">
-                                    {{ number_format($u->jumlah_item, 0, ',', '.') }}</td>
+                                    {{ number_format($u->jumlah_item, 0, ',', '.') }}
+                                </td>
                                 <td class="whitespace-nowrap px-4 py-3 text-right align-top tabular-nums text-slate-700">Rp
-                                    {{ number_format($u->total_pagu, 0, ',', '.') }}</td>
+                                    {{ number_format($u->total_pagu, 0, ',', '.') }}
+                                </td>
                                 <td class="px-5 py-3 align-top">
                                     @if ($u->is_active)
                                         <span
