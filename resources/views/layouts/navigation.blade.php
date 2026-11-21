@@ -209,7 +209,7 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                         @foreach ($group['items'] as $item)
                             <a href="{{ route($item['route']) }}" :title="sidebarCollapsed ? '{{ $item['label'] }}' : ''"
                                 class="sb-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition
-                                                                                                                            {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
+                                                                                                                                    {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
                                 :class="sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''">
                                 <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                                     stroke-width="2">
@@ -242,7 +242,7 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                 @else
                     <a href="{{ route($item['route']) }}" :title="sidebarCollapsed ? '{{ $item['label'] }}' : ''"
                         class="sb-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition
-                                                                                                                    {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
+                                                                                                                            {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
                         :class="sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''">
                         <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}" />
