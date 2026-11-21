@@ -1,5 +1,11 @@
 <x-app-layout title="Anggaran">
 
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+            Laporan Ketersediaan Dana
+        </h2>
+    </x-slot>
+
     <style>
         /* Tabel: di layar kecil bisa digeser ke samping, di desktop muat penuh */
         .ang-scroll {
@@ -108,51 +114,49 @@
 
     <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {{-- ===== Judul & aksi (gaya sama seperti halaman Daftar Pegawai: pita putih di bawah navbar) ===== --}}
-        <div class="-mx-4 sm:-mx-6 lg:-mx-8 -mt-8 border-b border-slate-200 bg-white px-4 py-5 sm:px-6 lg:px-8">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-semibold tracking-tight text-slate-800">Laporan Ketersediaan Dana</h2>
-                    <p id="ang-meta" class="mt-1 text-sm text-slate-500">Memuat data...</p>
-                </div>
-                <div class="flex flex-col sm:items-end gap-2 shrink-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" id="btn-source"
-                            class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
-                            <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                            </svg>
-                            Sumber data
-                        </button>
+        {{-- ===== Subjudul & aksi (judul sekarang ada di slot header) ===== --}}
+        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div>
+                <p id="ang-meta" class="text-sm text-slate-500">Memuat data...</p>
+            </div>
 
-                        <a id="btn-export" href="{{ route('anggaran.export') }}"
-                            class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
-                            <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+            <div class="flex flex-col sm:items-end gap-2 shrink-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" id="btn-source"
+                        class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                        <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                        </svg>
+                        Sumber data
+                    </button>
+
+                    <a id="btn-export" href="{{ route('anggaran.export') }}"
+                        class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                        <svg class="w-4 h-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Export Excel
+                    </a>
+
+                    @if ($canUpload)
+                        <a href="{{ route('anggaran.upload') }}"
+                            class="inline-flex justify-center items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shrink-0 transition shadow-sm">
+                            <svg class="w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
                                 viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                             </svg>
-                            Export Excel
+                            Upload / Perbarui Data
                         </a>
-
-                        @if ($canUpload)
-                            <a href="{{ route('anggaran.upload') }}"
-                                class="inline-flex justify-center items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shrink-0 transition shadow-sm">
-                                <svg class="w-4 h-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                    viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                                </svg>
-                                Upload / Perbarui Data
-                            </a>
-                        @endif
-                    </div>
-                    <p id="ang-updated" class="hidden text-xs text-slate-400 sm:text-right">
-                        <span id="ang-updated-text"></span>
-                    </p>
+                    @endif
                 </div>
+                <p id="ang-updated" class="hidden text-xs text-slate-400 sm:text-right">
+                    <span id="ang-updated-text"></span>
+                </p>
             </div>
         </div>
 
@@ -224,6 +228,7 @@
                     </div>
                 </div>
             </div>
+
 
             {{-- ===== Filter ===== --}}
             <div class="card p-5 space-y-4">
