@@ -199,6 +199,13 @@ class MemoController extends Controller
         // Riwayat tiap memo, dimuat sekali untuk semua memo yang tampil (tanpa N+1).
         $logMap = $this->petaLog($memos->pluck('id')->all());
 
+        // Posisi berkas fisik terakhir per memo (tabel terpisah, tidak terkait tahap).
+        $berkasMap = DB::table('memo_berkas_fisik')
+            ->whereIn('memo_key', $memos->pluck('id')->all())
+            ->orderBy('id')->get()->groupBy('memo_key')
+            ->map(fn($g) => $g->last()->posisi)
+            ->all();
+
         // Opsi PIC buat dropdown filter
         $picOptions = $memos->pluck('pic')->unique()->sort()->values();
 
@@ -231,7 +238,7 @@ class MemoController extends Controller
 
         $nomorBerikutnya = NomorMemoService::dataBerikutnya();
 
-        return view('memo.index', compact('groups', 'nomorBerikutnya', 'picOptions', 'logMap'));
+        return view('memo.index', compact('groups', 'nomorBerikutnya', 'picOptions', 'logMap', 'berkasMap'));
     }
 
     /**
