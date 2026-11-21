@@ -131,6 +131,8 @@ Route::middleware('auth')->group(function () {
                 Route::post('{memo}/selesai-otp', 'selesaiOtp')->where('memo', $pola)->name('selesai-otp');
                 Route::post('{memo}/berkas-fisik', [BerkasFisikController::class, 'simpan'])
                     ->name('berkas-fisik');
+                Route::post('{memo}/tarik-kembali', [MemoTahapController::class, 'tarikKembali'])
+                    ->name('tarik-kembali');
             });
         });
 

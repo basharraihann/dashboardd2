@@ -607,7 +607,25 @@ class MemoController extends Controller
                 );
             }
         }
+        // 5. Berkas fisik: hanya untuk Keuangan, unit kerja tidak melihatnya
+        if (auth()->user()?->can('kelola-anggaran')) {
+            $posisiSebelumnya = [];
 
+            foreach (DB::table('memo_berkas_fisik')->whereIn('memo_key', $memoKeys)->orderBy('id')->get() as $r) {
+                $dari = $posisiSebelumnya[$r->memo_key] ?? null;
+                $posisiSebelumnya[$r->memo_key] = $r->posisi;
+
+                $baris[$r->memo_key][] = [
+                    'waktu' => (string) $r->created_at,
+                    'judul' => $dari
+                        ? "Berkas fisik: {$dari} → {$r->posisi}"
+                        : "Berkas fisik: diatur ke {$r->posisi}",
+                    'detail' => null,
+                    'user_id' => null,
+                    'oleh' => $r->oleh,
+                ];
+            }
+        }
         // Nama pelaku, satu query.
         $userIds = collect($baris)->flatten(1)->pluck('user_id')->filter()->unique()->all();
         $nama = $userIds === []
@@ -622,7 +640,7 @@ class MemoController extends Controller
                 'waktu' => $r['waktu'],
                 'judul' => $r['judul'],
                 'detail' => $r['detail'],
-                'oleh' => $r['user_id'] ? ($nama[$r['user_id']] ?? null) : null,
+                'oleh' => $r['oleh'] ?? ($r['user_id'] ? ($nama[$r['user_id']] ?? null) : null),
             ], $rows);
         }
 

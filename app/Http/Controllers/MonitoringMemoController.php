@@ -359,11 +359,37 @@ class MonitoringMemoController extends Controller
                 'oleh' => $r->putus_nama ?? 'Otomatis',
             ]);
 
+        // 5) Perpindahan posisi berkas fisik (tabel terpisah, tidak terkait tahap memo)
+        $logBerkas = DB::table('memo_berkas_fisik')
+            ->whereIn('memo_key', $keys)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('memo_key')
+            ->flatMap(function ($grup, $key) use ($peta) {
+                $sebelumnya = null;
+
+                return $grup->map(function ($r) use ($peta, $key, &$sebelumnya) {
+                    $judul = $sebelumnya
+                        ? "Berkas fisik: {$sebelumnya} → {$r->posisi}"
+                        : "Berkas fisik: diatur ke {$r->posisi}";
+                    $sebelumnya = $r->posisi;
+
+                    return [
+                        'nomor_memo' => $peta[$key]['nomor_memo'],
+                        'judul' => $judul,
+                        'catatan' => null,
+                        'waktu' => Carbon::parse($r->created_at),
+                        'oleh' => $r->oleh,
+                    ];
+                });
+            });
+
         return $logStatus
             ->concat($logKirim)
             ->concat($logVerifikasi)
             ->concat($logPengajuan)
             ->concat($logPutusan)
+            ->concat($logBerkas)
             ->groupBy('nomor_memo')
             ->map(fn($g) => $g->sortByDesc('waktu')->values());
     }

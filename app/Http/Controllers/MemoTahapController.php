@@ -104,6 +104,23 @@ class MemoTahapController extends Controller
         );
     }
 
+    // Keuangan menarik memo dari PPSPM kembali ke unit kerja.
+    public function tarikKembali(Request $request, string $memo)
+    {
+        abort_unless($request->user()?->can('kelola-anggaran'), 403);
+
+        $data = $request->validate([
+            'alasan' => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            MemoTahapService::tarikDariPpspm($memo, $data['alasan'], $request->user()->id);
+        } catch (\DomainException $e) {
+            return back()->withErrors(['tarik' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Memo ditarik kembali ke unit kerja.');
+    }
     // ---- Helper ----
 
     private function jalankan(\Closure $aksi, string $pesanSukses)

@@ -212,6 +212,48 @@ class MemoTahapService
         });
     }
 
+    // Keuangan menarik memo dari ppspm kembali ke unit (bukan lewat pengajuan unit).
+    // Hanya untuk memo yang uangnya belum cair; SAKTI dilepas seperti pada kembalikan().
+    public static function tarikDariPpspm(string $memo, string $alasan, int $userId): void
+    {
+        $alasan = trim($alasan);
+
+        if ($alasan === '') {
+            throw new \DomainException('Alasan wajib diisi.');
+        }
+
+        DB::transaction(function () use ($memo, $alasan, $userId) {
+            $tahap = self::kunci($memo)->tahap;
+
+            if ($tahap !== 'ppspm') {
+                throw new \DomainException("Memo di tahap {$tahap} tidak bisa ditarik dari PPSPM.");
+            }
+
+            $status = self::statusAnggaran($memo) ?: 'outstanding';
+
+            if ($status === 'sp2d') {
+                throw new \DomainException('Uang sudah cair (SP2D). Buka kembali status SP2D dulu sebelum menarik memo.');
+            }
+            if ($status !== 'sakti') {
+                throw new \DomainException("Memo berstatus {$status} tidak bisa ditarik.");
+            }
+
+            // Lepas SAKTI dan sisa MAK; alasan otomatis masuk ke log status anggaran.
+            if (MemoStatusService::ubah($memo, 'outstanding', null, "Ditarik dari PPSPM: {$alasan}", $userId) === false) {
+                throw new \DomainException('Status anggaran memo tidak berubah, penarikan dibatalkan.');
+            }
+
+            DB::table('memo_progres')->where('memo_key', $memo)->update([
+                'tahap' => 'dikembalikan',
+                'jenis_dokumen' => null,
+                'nomor_spp_spby' => null,
+                'updated_at' => now(),
+            ]);
+
+            self::gugurkanPengajuan($memo, 'Memo ditarik kembali ke unit oleh Keuangan.');
+        });
+    }
+
     // Satu-satunya jalan untuk ubah status anggaran manual (dropdown & aksi massal).
     // SAKTI dan pelepasan SAKTI hanya lewat inputSakti() / kembalikan().
     // Mengembalikan hasil MemoStatusService::ubah().
