@@ -16,6 +16,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
 
     <div class="page-break">
         @include('pdf.spd', ['agenda' => $agenda, 'pegawai' => $pegawai, 'ppk' => $ppk, 'nomorSt' => $nomorSt])

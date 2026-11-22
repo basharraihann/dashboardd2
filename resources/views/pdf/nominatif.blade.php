@@ -147,6 +147,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
     <div class="kop">
         <h4>DAFTAR NOMINATIF</h4>
         <h4>PEMBAYARAN PERJALANAN DINAS LUAR KOTA</h4>

@@ -89,6 +89,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
     @php
         // Nilai 0 / kosong ditampilkan sebagai "-"
         $rupiah = fn($n) => (float) ($n ?? 0) == 0 ? '-' : 'Rp' . number_format($n);

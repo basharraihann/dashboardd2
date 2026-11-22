@@ -7,6 +7,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
 
     <div id="rincian-biaya-page">
         <style>

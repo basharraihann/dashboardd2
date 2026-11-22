@@ -137,6 +137,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
     @php
         // Nominal gaya akuntansi, format angka mengikuti contoh: 1,800,000
         $rp = fn($n) => '<table class="acc"><tr><td>Rp</td><td class="num">' . number_format((int) $n, 0, '.', ',') . '</td></tr></table>';

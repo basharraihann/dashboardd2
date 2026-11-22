@@ -225,6 +225,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
 
     {{-- ================= HALAMAN 1: MEMORANDUM ================= --}}
     <table class="header-table">

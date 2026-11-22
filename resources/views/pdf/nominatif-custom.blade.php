@@ -78,6 +78,7 @@
 </head>
 
 <body>
+    @include('pdf._tanda-sistem')
     <h4>DAFTAR NOMINATIF</h4>
     <h4>{{ $entry->uraian_kegiatan }}</h4>
 
