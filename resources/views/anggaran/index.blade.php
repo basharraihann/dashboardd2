@@ -229,6 +229,62 @@
                 </div>
             </div>
 
+            {{-- ===== Grafik ===== --}}
+            <div class="card p-5 space-y-6">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-800">Grafik Anggaran</h3>
+                    <p class="text-xs text-slate-400">Mengikuti filter Kegiatan sampai Akun dan kolom pencarian. Grafik
+                        per unit selalu menampilkan semua unit supaya bisa dibandingkan. M = miliar, jt = juta.</p>
+                </div>
+
+                <div>
+                    <p class="mb-2 text-sm font-medium text-slate-700">Realisasi Seluruh Unit</p>
+                    <div class="relative h-24"><canvas id="ch-total"></canvas></div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-8 xl:grid-cols-2">
+                    <div>
+                        <div class="mb-2 flex flex-wrap items-center gap-3">
+                            <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5"
+                                title="Biro dan Inspektorat">
+                                <button type="button" data-chgroup="1"
+                                    class="rounded-[10px] px-3 py-1 text-xs font-medium transition">Gabung</button>
+                                <button type="button" data-chgroup="0"
+                                    class="rounded-[10px] px-3 py-1 text-xs font-medium transition">Pisah</button>
+                            </div>
+                            <p class="text-sm font-medium text-slate-700">Realisasi per Unit Kerja (% dari pagu)</p>
+                        </div>
+                        <div id="ch-unit-wrap" class="relative h-72"><canvas id="ch-unit"></canvas></div>
+                    </div>
+                    <div>
+                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-sm font-medium text-slate-700">Komposisi Pagu per Unit Kerja</p>
+                            <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5">
+                                <button type="button" data-chmode="rp"
+                                    class="rounded-[10px] px-3 py-1 text-xs font-medium transition">Nominal</button>
+                                <button type="button" data-chmode="pct"
+                                    class="rounded-[10px] px-3 py-1 text-xs font-medium transition">Persen</button>
+                            </div>
+                        </div>
+                        <div id="ch-stack-wrap" class="relative h-72"><canvas id="ch-stack"></canvas></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">10 Akun Teratas</p>
+                            <p class="text-xs text-slate-400">Bagian ini juga mengikuti filter Unit Kerja.</p>
+                        </div>
+                        <select id="ch-akun-metric"
+                            class="rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-8 text-xs text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                            <option value="efektif">Sisa Efektif terbesar</option>
+                            <option value="out">Outstanding terbesar</option>
+                        </select>
+                    </div>
+                    <div class="relative h-[360px]"><canvas id="ch-akun"></canvas></div>
+                </div>
+            </div>
 
             {{-- ===== Filter ===== --}}
             <div class="card p-5 space-y-4">
@@ -465,6 +521,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script>
         (function () {
             const CH = ['keg', 'ro', 'komp', 'sub', 'akun'];
@@ -479,7 +536,7 @@
             const U = { units: new Set(), sub: '' };
             const openUnits = new Set();   // kelompok yang rinciannya sedang dibuka
             const BELUM = 'Belum dipetakan';
-            const pctTxt = (x) => x.toFixed(1).replace('.', ',') + '%';
+            const pctTxt = (x) => x.toFixed(2).replace('.', ',') + '%';
             // Angka kartu ditampilkan penuh, tanpa pembulatan
             const short = (n) => 'Rp ' + rp(n);
             // Satu warna biru yang sama (blue-600) untuk semua progress
@@ -712,6 +769,296 @@
                 $('btn-export').href = base + (p.toString() ? '?' + p.toString() : '');
             }
 
+            // ---- ringkasan per unit (dipakai kartu unit dan grafik) ----
+            // Outstanding menempel di MAK, jadi tiap MAK hanya dijumlahkan sekali per unit / sub unit.
+            function aggregate(terms, unitOk, keyOf) {
+                const by = new Map();
+                items.filter((it) => match(it, 5) && (!unitOk || unitOk(it.unit)) && matchQ(it, terms)).forEach((it) => {
+                    const v = vals(it), key = makKey(it), o = Number(OUT[key]) || 0;
+                    const uk = keyOf ? keyOf(it.unit) : it.unit;
+                    let a = by.get(uk);
+                    if (!a) { a = { unit: uk, pagu: 0, sd: 0, out: 0, mak: new Set(), subs: new Map() }; by.set(uk, a); }
+                    a.pagu += v.pagu; a.sd += v.sd;
+                    if (!a.mak.has(key)) { a.mak.add(key); a.out += o; }
+                    if (it.sub_unit) {
+                        let x = a.subs.get(it.sub_unit);
+                        if (!x) { x = { pagu: 0, sd: 0, out: 0, mak: new Set() }; a.subs.set(it.sub_unit, x); }
+                        x.pagu += v.pagu; x.sd += v.sd;
+                        if (!x.mak.has(key)) { x.mak.add(key); x.out += o; }
+                    }
+                });
+                return by;
+            }
+
+            // Baris angka kecil untuk kartu rincian Asdep / Sesdep
+            const subRows = (x, soft) => {
+                const rows = [['Pagu', x.pagu], ['Sisa', x.pagu - x.sd], ['Outstanding', x.out], ['Sisa Efektif', x.pagu - x.sd - x.out]];
+                return `<dl class="mt-2.5 space-y-1 text-[11px] tabular-nums">${rows.map(([l, v], i) => `<div class="flex justify-between gap-2"><dt class="${soft ? 'text-slate-400' : 'text-slate-500'}">${l}</dt><dd class="${i === 3 ? 'font-semibold text-slate-800' : (soft ? 'text-slate-500' : 'font-medium text-slate-700')}">${short(v)}</dd></div>`).join('')}</dl>`;
+            };
+
+            // ---- grafik (Chart.js) ----
+            // Isi bila ingin nama lengkap unit di grafik, mis.: D1: 'Deputi Bidang Koordinasi ...'
+            const NAMA_UNIT = {};
+            const unitName = (u) => NAMA_UNIT[u] || u;
+            const pct2 = (x) => x.toFixed(2).replace('.', ',') + '%';
+            const compact = (n) => {
+                const a = Math.abs(n), s = n < 0 ? '-' : '';
+                if (a >= 1e12) return s + (a / 1e12).toFixed(1).replace('.', ',') + ' T';
+                if (a >= 1e9) return s + (a / 1e9).toFixed(1).replace('.', ',') + ' M';
+                if (a >= 1e6) return s + Math.round(a / 1e6) + ' jt';
+                return s + rp(a);
+            };
+            const wrapLbl = (t, n = 22) => {
+                const out = []; let cur = '';
+                String(t).split(' ').forEach((w) => {
+                    if (cur && (cur + ' ' + w).length > n) { out.push(cur); cur = w; } else cur = (cur ? cur + ' ' : '') + w;
+                });
+                if (cur) out.push(cur);
+                return out;
+            };
+            const CHARTS = {};
+            let chMode = 'rp';   // 'rp' = nominal, 'pct' = persen terhadap pagu
+            let chGroup = true;  // true = Biro + Inspektorat digabung jadi Sekretariat Kementerian
+            const SEKRE = 'SETMENKO';
+            const isBiro = (u) => /biro|inspektorat/i.test(u);
+            const groupKey = (u) => isBiro(u) ? SEKRE : u;
+
+            // Plugin kecil: tulis angka di batang.
+            // Pada batang bertumpuk, angka yang tidak muat di dalam segmen ditulis di kanan batang (diberi warna segmennya).
+            const valueLabels = {
+                id: 'valueLabels',
+                afterDatasetsDraw(chart, args, opt) {
+                    if (!opt || !opt.fmt) return;
+                    const ctx = chart.ctx, horiz = chart.options.indexAxis === 'y';
+                    const spill = {};
+                    ctx.save();
+                    ctx.font = '600 11px ' + (Chart.defaults.font.family || 'sans-serif');
+                    ctx.textBaseline = 'middle';
+                    chart.data.datasets.forEach((ds, di) => {
+                        const meta = chart.getDatasetMeta(di);
+                        if (meta.hidden) return;
+                        meta.data.forEach((bar, i) => {
+                            const txt = opt.fmt(ds.data[i], di, i);
+                            if (!txt) return;
+                            const tw = ctx.measureText(txt).width;
+                            if (opt.mode === 'center') {
+                                const w = Math.abs(bar.x - bar.base);
+                                if (horiz && opt.stacked && ds.spill) {
+                                    (spill[i] = spill[i] || []).push({ txt: ds.label + ' ' + txt, color: ds.backgroundColor });
+                                    return;
+                                }
+                                if (horiz && w >= tw + 8) {
+                                    ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+                                    ctx.fillText(txt, (bar.x + bar.base) / 2, bar.y);
+                                } else if (horiz && opt.stacked) {
+                                    (spill[i] = spill[i] || []).push({ txt: ds.label + ' ' + txt, color: ds.backgroundColor });
+                                } else if (horiz) {
+                                    ctx.fillStyle = '#334155'; ctx.textAlign = 'left';
+                                    ctx.fillText(txt, bar.x + 6, bar.y);
+                                }
+                                return;
+                            }
+                            ctx.fillStyle = '#334155';
+                            if (horiz) { ctx.textAlign = 'left'; ctx.fillText(txt, bar.x + 6, bar.y); }
+                            else { ctx.textAlign = 'center'; ctx.fillText(txt, bar.x, bar.y - 10); }
+                        });
+                    });
+                    Object.keys(spill).forEach((i) => {
+                        let endX = 0, y = 0;
+                        chart.data.datasets.forEach((ds, di) => {
+                            const m = chart.getDatasetMeta(di);
+                            if (m.hidden || !m.data[i]) return;
+                            endX = Math.max(endX, m.data[i].x);
+                            y = m.data[i].y;
+                        });
+                        const list = spill[i], lh = 13;
+                        ctx.textAlign = 'left';
+                        list.forEach((it, k) => {
+                            ctx.fillStyle = it.color;
+                            ctx.fillText(it.txt, endX + 8, y + (k - (list.length - 1) / 2) * lh);
+                        });
+                    });
+                    ctx.restore();
+                },
+            };
+
+            function mkChart(id, cfg) {
+                if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; }
+                const el = $(id);
+                if (!el) return;
+                cfg.options = Object.assign({ responsive: true, maintainAspectRatio: false, animation: false }, cfg.options);
+                cfg.plugins = [valueLabels];
+                CHARTS[id] = new Chart(el, cfg);
+            }
+
+            function syncChMode() {
+                document.querySelectorAll('[data-chmode]').forEach((b) => {
+                    const on = b.dataset.chmode === chMode;
+                    b.style.background = on ? '#2563eb' : '';
+                    b.style.color = on ? '#fff' : '';
+                    b.classList.toggle('text-slate-600', !on);
+                });
+                document.querySelectorAll('[data-chgroup]').forEach((b) => {
+                    const on = (b.dataset.chgroup === '1') === chGroup;
+                    b.style.background = on ? '#2563eb' : '';
+                    b.style.color = on ? '#fff' : '';
+                    b.classList.toggle('text-slate-600', !on);
+                });
+            }
+
+            function renderCharts(terms) {
+                if (typeof Chart === 'undefined') return;   // CDN gagal dimuat: halaman tetap jalan tanpa grafik
+                syncChMode();
+                Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+                Chart.defaults.font.size = 11;
+                Chart.defaults.color = '#64748b';
+
+                const by = aggregate(terms, null, chGroup ? groupKey : null);
+                const units = orderUnits([...by.keys()]);
+                const A = (u) => by.get(u);
+                const pctOf = (a) => a.pagu ? a.sd / a.pagu * 100 : 0;
+                const efektif = (a) => a.pagu - a.sd - a.out;
+                const hh = Math.max(280, units.length * 48 + 70);
+                $('ch-unit-wrap').style.height = hh + 'px';
+                $('ch-stack-wrap').style.height = hh + 'px';
+
+                // 1) Realisasi seluruh unit (batang tunggal 0-100%)
+                let P = 0, R = 0;
+                by.forEach((a) => { P += a.pagu; R += a.sd; });
+                const tot = P ? R / P * 100 : 0;
+                mkChart('ch-total', {
+                    type: 'bar',
+                    data: { labels: ['Seluruh unit'], datasets: [{ data: [tot], backgroundColor: '#2563eb', borderRadius: 4, barThickness: 24 }] },
+                    options: {
+                        indexAxis: 'y',
+                        scales: {
+                            x: { min: 0, max: 100, ticks: { stepSize: 10, callback: (v) => v + '%' }, grid: { color: '#e2e8f0' } },
+                            y: { display: false },
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: () => 'Realisasi Rp ' + rp(R) + ' dari pagu Rp ' + rp(P) } },
+                            valueLabels: { mode: 'center', fmt: (v) => pct2(v) },
+                        },
+                    },
+                });
+
+                // 2) Realisasi per unit (kolom, skala 0-100% supaya tidak menyesatkan)
+                mkChart('ch-unit', {
+                    type: 'bar',
+                    data: { labels: units.map((u) => wrapLbl(unitName(u))), datasets: [{ data: units.map((u) => pctOf(A(u))), backgroundColor: '#2563eb', borderRadius: 4, maxBarThickness: 56 }] },
+                    options: {
+                        layout: { padding: { top: 22 } },
+                        scales: {
+                            y: { min: 0, max: 100, ticks: { callback: (v) => v + '%' }, grid: { color: '#e2e8f0' } },
+                            x: { grid: { display: false } },
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: (it) => unitName(units[it[0].dataIndex]),
+                                    label: (c) => { const a = A(units[c.dataIndex]); return ['Realisasi ' + pct2(c.raw), 'Rp ' + rp(a.sd) + ' dari Rp ' + rp(a.pagu)]; },
+                                },
+                            },
+                            valueLabels: { fmt: (v) => pct2(v) },
+                        },
+                    },
+                });
+
+                // 3) Komposisi pagu per unit: Realisasi + Outstanding + Sisa Efektif
+                const pc = chMode === 'pct';
+                const su = [...units].sort((a, b) => efektif(A(a)) - efektif(A(b)));   // sisa efektif terkecil di atas
+                const SER = [
+                    { label: 'Realisasi', key: 'sd', color: '#0d9488', raw: (a) => a.sd },
+                    { label: 'Outstanding', key: 'out', color: '#7c3aed', raw: (a) => a.out },
+                    { label: 'Sisa Efektif', key: 'ef', color: '#16a34a', raw: (a) => efektif(a) },
+                ];
+                mkChart('ch-stack', {
+                    type: 'bar',
+                    data: {
+                        labels: su.map((u) => wrapLbl(unitName(u), 26)),
+                        datasets: SER.map((x) => ({
+                            label: x.label, backgroundColor: x.color, borderWidth: 0, maxBarThickness: 28, spill: true,
+                            data: su.map((u) => { const a = A(u), v = Math.max(0, x.raw(a)); return pc ? (a.pagu ? v / a.pagu * 100 : 0) : v; }),
+                        })),
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        layout: { padding: { right: 128 } },
+                        scales: {
+                            x: { stacked: true, max: pc ? 100 : undefined, grid: { color: '#e2e8f0' }, ticks: { callback: (v) => pc ? v + '%' : compact(v) } },
+                            y: { stacked: true, grid: { display: false } },
+                        },
+                        plugins: {
+                            legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
+                            tooltip: {
+                                callbacks: {
+                                    title: (it) => unitName(su[it[0].dataIndex]),
+                                    label: (c) => {
+                                        const a = A(su[c.dataIndex]), r = SER[c.datasetIndex].raw(a);
+                                        return c.dataset.label + ': Rp ' + rp(r) + (a.pagu ? ' (' + pct2(r / a.pagu * 100) + ')' : '');
+                                    },
+                                },
+                            },
+                            valueLabels: {
+                                mode: 'center', stacked: true,
+                                // Angka ditulis di kanan batang: Realisasi, Outstanding (hanya bila ada), Sisa Efektif
+                                fmt: (v, di, i) => {
+                                    const a = A(su[i]), r = SER[di].raw(a);
+                                    if (!r) return SER[di].key === 'out' ? '' : (pc ? '0,00%' : '0');   // Outstanding hanya tampil bila ada
+                                    if (!pc) return compact(r);
+                                    const q = a.pagu ? r / a.pagu * 100 : 0;
+                                    return (q > 0 && q < 0.005) ? '<0,01%' : pctTxt(q);
+                                },
+                            },
+                        },
+                    },
+                });
+
+                // 4) 10 akun teratas (mengikuti filter unit juga). Outstanding dihitung sekali per MAK.
+                const mk = new Map();
+                items.filter((it) => inUnit(it) && match(it, 5) && matchQ(it, terms)).forEach((it) => {
+                    const key = makKey(it), v = vals(it);
+                    let m = mk.get(key);
+                    if (!m) { m = { kode: String(it.akun_kode ?? ''), ur: it.akun_uraian || '', pagu: 0, sd: 0, out: Number(OUT[key]) || 0 }; mk.set(key, m); }
+                    m.pagu += v.pagu; m.sd += v.sd;
+                });
+                const ak = new Map();
+                mk.forEach((m) => {
+                    let a = ak.get(m.kode);
+                    if (!a) { a = { kode: m.kode, ur: m.ur, out: 0, efektif: 0 }; ak.set(m.kode, a); }
+                    a.out += m.out; a.efektif += m.pagu - m.sd - m.out;
+                });
+                const metric = $('ch-akun-metric').value;
+                const top = [...ak.values()].filter((a) => a[metric] > 0).sort((a, b) => b[metric] - a[metric]).slice(0, 10);
+                mkChart('ch-akun', {
+                    type: 'bar',
+                    data: {
+                        labels: top.map((a) => clip(a.kode + ' ' + a.ur, 38)),
+                        datasets: [{ data: top.map((a) => a[metric]), backgroundColor: metric === 'out' ? '#7c3aed' : '#16a34a', borderRadius: 4, maxBarThickness: 22 }],
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        layout: { padding: { right: 70 } },
+                        scales: {
+                            x: { grid: { color: '#e2e8f0' }, ticks: { callback: (v) => compact(v) } },
+                            y: { grid: { display: false } },
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: (it) => { const a = top[it[0].dataIndex]; return a.kode + ' ' + a.ur; },
+                                    label: (c) => (metric === 'out' ? 'Outstanding: Rp ' : 'Sisa Efektif: Rp ') + rp(c.raw),
+                                },
+                            },
+                            valueLabels: { fmt: (v) => compact(v) },
+                        },
+                    },
+                });
+            }
+
             // ---- kartu unit kerja (hanya untuk unit yang dicentang) ----
             // Dihitung dari data yang lolos filter Kegiatan..Akun, TANPA filter unit.
             function renderUnitCards() {
@@ -720,23 +1067,12 @@
                 if (!U.units.size) { $('unit-cards').innerHTML = ''; return; }
 
                 const terms = getTerms();
-                const by = new Map();
-                items.filter((it) => match(it, 5) && U.units.has(it.unit) && matchQ(it, terms)).forEach((it) => {
-                    const v = vals(it);
-                    let a = by.get(it.unit);
-                    if (!a) { a = { unit: it.unit, pagu: 0, sd: 0, subs: new Map() }; by.set(it.unit, a); }
-                    a.pagu += v.pagu; a.sd += v.sd;
-                    if (it.sub_unit) {
-                        let x = a.subs.get(it.sub_unit);
-                        if (!x) { x = { pagu: 0, sd: 0 }; a.subs.set(it.sub_unit, x); }
-                        x.pagu += v.pagu; x.sd += v.sd;
-                    }
-                });
+                const by = aggregate(terms, (u) => U.units.has(u));
                 $('unit-sub').textContent = terms.length
                     ? 'Hasil pencarian "' + terms.join(', ') + '" per unit (angka hanya dari kode yang cocok).'
                     : 'Kartu muncul untuk unit yang dicentang pada filter Unit Kerja di atas.';
                 const empty = (a) => terms.length && !a.pagu && !a.sd;
-                const list = orderUnits([...U.units]).map((u) => by.get(u) || { unit: u, pagu: 0, sd: 0, subs: new Map() });
+                const list = orderUnits([...U.units]).map((u) => by.get(u) || { unit: u, pagu: 0, sd: 0, out: 0, subs: new Map() });
                 const single = list.length === 1;
 
                 const bar = (p, h = 'h-1.5') => `<div class="${h} w-full overflow-hidden rounded-full bg-slate-100">
@@ -748,7 +1084,7 @@
                         <circle cx="32" cy="32" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="6"></circle>
                         <circle class="ring-fg" cx="32" cy="32" r="${r}" fill="none" stroke="${tone(p)}" stroke-width="6" stroke-linecap="round"
                             stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" transform="rotate(-90 32 32)"></circle>
-                        <text x="32" y="36.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0f172a">${Math.round(p)}%</text>
+                        <text x="32" y="36.5" text-anchor="middle" font-size="10" font-weight="700" fill="#0f172a">${pctTxt(p)}</text>
                     </svg>`;
                 };
                 const chevron = (o) => `<svg class="chev w-3.5 h-3.5 ${o ? 'is-open' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>`;
@@ -757,7 +1093,7 @@
 
                 // Baris berlabel (kiri: label, kanan: angka) supaya angka penuh tidak saling menimpa
                 // Pagu = biru, Realisasi = teal, Sisa = amber; semua versi tua/redup supaya tetap profesional
-                const CLR = { pagu: ['#2563eb', '#1e3a8a'], real: ['#0d9488', '#115e59'], sisa: ['#d97706', '#92400e'] };
+                const CLR = { pagu: ['#2563eb', '#1e3a8a'], real: ['#0d9488', '#115e59'], sisa: ['#d97706', '#92400e'], out: ['#7c3aed', '#5b21b6'], efektif: ['#16a34a', '#166534'] };
                 const dRow = (label, v, key, strong) => `<div class="flex items-center justify-between gap-3 py-2">
                     <dt class="flex items-center gap-2 text-xs text-slate-500"><span class="h-2 w-2 rounded-full" style="background:${CLR[key][0]}"></span>${label}</dt>
                     <dd class="tabular-nums text-[13px] ${strong ? 'font-semibold' : 'font-medium'}" style="color:${CLR[key][1]}">${short(v)}</dd></div>`;
@@ -780,10 +1116,7 @@
                                 <span class="shrink-0 text-sm font-semibold tabular-nums text-slate-900">${pctTxt(sp)}</span>
                             </div>
                             <div class="mt-2">${bar(sp, 'h-1')}</div>
-                            <div class="mt-2 flex justify-between gap-2 text-[11px] tabular-nums text-slate-500">
-                                <span>Pagu <b class="font-medium text-slate-700">${short(x.pagu)}</b></span>
-                                <span>Sisa <b class="font-medium text-slate-700">${short(x.pagu - x.sd)}</b></span>
-                            </div>
+                            ${subRows(x)}
                         </div>`;
                     };
                     return `<div class="card p-5">
@@ -797,7 +1130,7 @@
                                 </div>
                             </div>
                             <dl class="grid min-w-[260px] flex-1 grid-cols-1 divide-y divide-slate-100 rounded-xl bg-slate-50 px-4 sm:max-w-md">
-                                ${dRow('Pagu', a.pagu, 'pagu')}${dRow('Realisasi', a.sd, 'real')}${dRow('Sisa', a.pagu - a.sd, 'sisa', true)}
+                                ${dRow('Pagu', a.pagu, 'pagu')}${dRow('Realisasi', a.sd, 'real')}${dRow('Sisa', a.pagu - a.sd, 'sisa')}${dRow('Outstanding', a.out, 'out')}${dRow('Sisa Efektif', a.pagu - a.sd - a.out, 'efektif', true)}
                             </dl>
                         </div>
                         ${subs.length ? `<div class="mt-5 border-t border-slate-100 pt-4">
@@ -826,9 +1159,7 @@
                                     <span class="shrink-0 text-xs font-semibold tabular-nums text-slate-800">${pctTxt(sp)}</span>
                                 </div>
                                 <div class="mt-1.5">${bar(sp, 'h-1')}</div>
-                                <div class="mt-1 flex justify-between gap-2 text-[11px] tabular-nums text-slate-400">
-                                    <span>Pagu ${short(x.pagu)}</span><span>Sisa ${short(x.pagu - x.sd)}</span>
-                                </div>
+                                ${subRows(x, true)}
                             </div>`;
                     }).join('')}</div>` : '';
                     return `<div class="card overflow-hidden p-5 ${warn ? 'ring-1 ring-amber-300' : ''}">
@@ -844,7 +1175,7 @@
                             </div>
                         </div>
                         <dl class="mt-3 divide-y divide-slate-100 rounded-xl bg-slate-50 px-4">
-                            ${dRow('Pagu', a.pagu, 'pagu')}${dRow('Realisasi', a.sd, 'real')}${dRow('Sisa', a.pagu - a.sd, 'sisa', true)}
+                            ${dRow('Pagu', a.pagu, 'pagu')}${dRow('Realisasi', a.sd, 'real')}${dRow('Sisa', a.pagu - a.sd, 'sisa')}${dRow('Outstanding', a.out, 'out')}${dRow('Sisa Efektif', a.pagu - a.sd - a.out, 'efektif', true)}
                         </dl>
                         ${subHtml}
                     </div>`;
@@ -923,6 +1254,7 @@
 
                 // 0) kartu unit (tidak ikut filter unit)
                 renderUnitCards();
+                renderCharts(terms);
 
                 // 1) bangun pohon dari data yang lolos filter bertingkat + filter unit
                 const scoped = items.filter((it) => match(it, 5)
@@ -1115,6 +1447,17 @@
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && !srcModal.classList.contains('hidden')) hideSource();
             });
+
+            // ---- kontrol grafik ----
+            document.querySelectorAll('[data-chmode]').forEach((b) => b.addEventListener('click', () => {
+                chMode = b.dataset.chmode;
+                renderCharts(getTerms());
+            }));
+            document.querySelectorAll('[data-chgroup]').forEach((b) => b.addEventListener('click', () => {
+                chGroup = b.dataset.chgroup === '1';
+                renderCharts(getTerms());
+            }));
+            $('ch-akun-metric').addEventListener('change', () => renderCharts(getTerms()));
 
             // ---- event ----
             CH.forEach((k, i) => {
