@@ -1,55 +1,37 @@
-<section class="space-y-6">
-    <header>
-        <h2 class="text-lg font-medium text-gray-900">
-            {{ __('Delete Account') }}
-        </h2>
+<header>
+    <h3 class="pf-title">Hapus Akun</h3>
+    <p class="pf-desc">Tindakan ini permanen dan tidak bisa dibatalkan.</p>
+</header>
 
-        <p class="mt-1 text-sm text-gray-600">
-            {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Before deleting your account, please download any data or information that you wish to retain.') }}
+<div class="pf-body pf-danger-row">
+    <p>Setelah akun dihapus, seluruh data akun ini ikut terhapus. Unduh dulu data yang masih Anda perlukan.</p>
+
+    <button type="button" class="pf-btn pf-btn--danger-outline" x-data=""
+        x-on:click.prevent="$dispatch('open-modal', 'confirm-user-deletion')">Hapus Akun</button>
+</div>
+
+<x-modal name="confirm-user-deletion" :show="$errors->userDeletion->isNotEmpty()" focusable>
+    <form method="post" action="{{ route('profile.destroy') }}" class="pf-modal">
+        @csrf
+        @method('delete')
+
+        <h3 class="pf-title" style="color:#111827">Hapus akun Anda?</h3>
+        <p class="pf-desc" style="margin-top:.5rem">
+            Seluruh data akun akan dihapus permanen. Masukkan password untuk mengonfirmasi.
         </p>
-    </header>
 
-    <x-danger-button
-        x-data=""
-        x-on:click.prevent="$dispatch('open-modal', 'confirm-user-deletion')"
-    >{{ __('Delete Account') }}</x-danger-button>
+        <div style="margin-top:1.25rem">
+            <label for="password" class="pf-label" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Password</label>
+            <input id="password" name="password" type="password" placeholder="Password"
+                class="pf-input @if ($errors->userDeletion->has('password')) is-error @endif">
+            @if ($errors->userDeletion->has('password'))
+                <p class="pf-error">{{ $errors->userDeletion->first('password') }}</p>
+            @endif
+        </div>
 
-    <x-modal name="confirm-user-deletion" :show="$errors->userDeletion->isNotEmpty()" focusable>
-        <form method="post" action="{{ route('profile.destroy') }}" class="p-6">
-            @csrf
-            @method('delete')
-
-            <h2 class="text-lg font-medium text-gray-900">
-                {{ __('Are you sure you want to delete your account?') }}
-            </h2>
-
-            <p class="mt-1 text-sm text-gray-600">
-                {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.') }}
-            </p>
-
-            <div class="mt-6">
-                <x-input-label for="password" value="{{ __('Password') }}" class="sr-only" />
-
-                <x-text-input
-                    id="password"
-                    name="password"
-                    type="password"
-                    class="mt-1 block w-3/4"
-                    placeholder="{{ __('Password') }}"
-                />
-
-                <x-input-error :messages="$errors->userDeletion->get('password')" class="mt-2" />
-            </div>
-
-            <div class="mt-6 flex justify-end">
-                <x-secondary-button x-on:click="$dispatch('close')">
-                    {{ __('Cancel') }}
-                </x-secondary-button>
-
-                <x-danger-button class="ms-3">
-                    {{ __('Delete Account') }}
-                </x-danger-button>
-            </div>
-        </form>
-    </x-modal>
-</section>
+        <div class="pf-modal-actions">
+            <button type="button" class="pf-btn pf-btn--ghost" x-on:click="$dispatch('close')">Batal</button>
+            <button type="submit" class="pf-btn pf-btn--danger">Hapus Akun</button>
+        </div>
+    </form>
+</x-modal>
