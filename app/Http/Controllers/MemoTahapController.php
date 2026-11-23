@@ -22,10 +22,10 @@ class MemoTahapController extends Controller
         // Validasi (langkah 2 / K1) dijalankan di dalam transaksi kirim, setelah baris dikunci.
         return $this->jalankan(
             fn() => MemoTahapService::kirim($memo, auth()->id(), fn() => $this->uji($memo)),
-            'Memo berhasil dikirim ke Keuangan.'
+            'Memo berhasil dikirim ke Keuangan.',
+            route('memo.index') // sukses -> langsung ke halaman memorandum
         );
     }
-
     public function ajukan(Request $request, string $memo)
     {
         $this->pastikanAkses($memo);
@@ -123,7 +123,7 @@ class MemoTahapController extends Controller
     }
     // ---- Helper ----
 
-    private function jalankan(\Closure $aksi, string $pesanSukses)
+    private function jalankan(\Closure $aksi, string $pesanSukses, ?string $redirectKe = null)
     {
         try {
             $aksi();
@@ -131,7 +131,8 @@ class MemoTahapController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', $pesanSukses);
+        return ($redirectKe ? redirect($redirectKe) : back())
+            ->with('success', $pesanSukses);
     }
 
     // findOrFail memakai global scope 'unit', jadi unit lain mendapat 404.

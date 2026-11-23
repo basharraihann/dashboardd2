@@ -1,9 +1,5 @@
 <x-app-layout title="Detail Agenda">
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Dashboard') }}
-        </h2>
-    </x-slot> <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 leading-tight break-words">{{ $agenda->uraian_kegiatan }}</h2>
     </x-slot>
 
@@ -55,10 +51,27 @@
         }
     </style>
 
+    @php
+        // Opsi kirim memorandum (dipakai tombol di header card)
+        $kirimMemoOpsi = [
+            [
+                'label' => 'Memorandum PNS',
+                'key'   => 'agenda-' . $agenda->id . '-pns',
+                'siap'  => !empty($agenda->mak) && !empty($agenda->nomor_memo_pns),
+                'ada'   => $agenda->pegawai->filter(fn($p) => ($p->status_kepegawaian ?? 'PNS') === 'PNS')->isNotEmpty(),
+            ],
+            [
+                'label' => 'Memorandum Non PNS',
+                'key'   => 'agenda-' . $agenda->id . '-non_pns',
+                'siap'  => !empty($agenda->mak) && !empty($agenda->nomor_memo_non_pns),
+                'ada'   => $agenda->pegawai->filter(fn($p) => ($p->status_kepegawaian ?? 'PNS') === 'Non PNS')->isNotEmpty(),
+            ],
+        ];
+    @endphp
+
     <div class="py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-            {{-- TARUH DI SINI --}}
             @if (session('warning'))
                 <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
                     {{ session('warning') }}
@@ -102,6 +115,42 @@
                         class="flex-1 sm:flex-none justify-center text-center inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold border {{ $agenda->mak ? 'border-blue-500 text-blue-600 bg-white hover:bg-blue-50' : 'border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100' }} transition">
                         {{ $agenda->mak ? 'Edit Anggaran & Memo' : 'Pilih Anggaran & Memo' }}
                     </a>
+
+                    {{-- Kirim Memorandum (dropdown PNS / Non PNS) --}}
+                    @can('buat-memo')
+                        <div class="relative flex-1 sm:flex-none" x-data="{ open: false }" @click.outside="open = false">
+                            <button type="button" @click="open = !open"
+                                class="w-full justify-center inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition">
+                                Kirim Memorandum
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform"
+                                    :class="{ 'rotate-180': open }" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            <div x-show="open" x-cloak x-transition.duration.150ms
+                                class="absolute left-0 sm:right-0 sm:left-auto z-20 mt-2 w-64 bg-white border border-gray-100 rounded-xl shadow-lg p-1.5">
+                                @foreach ($kirimMemoOpsi as $opsi)
+                                    @if ($opsi['ada'] && $opsi['siap'])
+                                        <form method="POST" action="{{ route('memo.kirim', $opsi['key']) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition">
+                                                Kirim {{ $opsi['label'] }}
+                                            </button>
+                                        </form>
+                                    @elseif ($opsi['ada'])
+                                        <a href="{{ route('agendas.anggaran', $agenda) }}"
+                                            class="block px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-50 transition"
+                                            title="MAK / nomor memo belum diisi">
+                                            {{ $opsi['label'] }} (lengkapi anggaran dulu)
+                                        </a>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endcan
                 </div>
             </div>
 

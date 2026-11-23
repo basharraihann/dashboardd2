@@ -13,7 +13,7 @@
         <style>
             #spd-page {
                 font-family: Arial, sans-serif;
-                font-size: 13px;
+                font-size: 12px;
                 color: #000;
                 line-height: 1.4;
             }
@@ -35,11 +35,11 @@
             }
 
             #spd-page .kop-title .l1 {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #spd-page .kop-title .l2 {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #spd-page .top-right-table {
@@ -49,7 +49,7 @@
 
             #spd-page .top-right-table td {
                 padding: 1px 0;
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #spd-page .top-right-table .lbl {
@@ -68,11 +68,11 @@
             }
 
             #spd-page .judul .l1 {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #spd-page .judul .l2 {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #spd-page .garis-atas {
@@ -172,7 +172,7 @@
             #spd-page .ttd-info-table td {
                 border: none;
                 padding: 1px 0;
-                font-size: 13px;
+                font-size: 12px;
                 white-space: nowrap;
             }
 

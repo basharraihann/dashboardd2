@@ -661,6 +661,35 @@
         </div>
     </dialog>
 
+{{-- Toast notifikasi: tetap tampil setelah reload lewat sessionStorage --}}
+<script>
+    (function () {
+        function tampilToast(pesan, jenis) {
+            const ok = jenis !== 'error';
+            const el = document.createElement('div');
+            el.setAttribute('role', ok ? 'status' : 'alert');
+            el.className = 'fixed top-4 right-4 z-[100] max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg transition-opacity duration-300 '
+                + (ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-red-50 text-red-700 border-red-200');
+            el.textContent = pesan;
+            document.body.appendChild(el);
+            setTimeout(function () { el.style.opacity = '0'; }, 3500);
+            setTimeout(function () { el.remove(); }, 4000);
+        }
+        window.tampilToast = tampilToast;
+
+        // Tampilkan pesan yang ditinggalkan sebelum reload
+        try {
+            const raw = sessionStorage.getItem('toast.pending');
+            if (raw) {
+                sessionStorage.removeItem('toast.pending');
+                const t = JSON.parse(raw);
+                if (t && t.pesan) tampilToast(t.pesan, t.jenis);
+            }
+        } catch (e) { }
+    })();
+</script>
+
     <script>
         (function () {
             const S = window.sessionStorage;
@@ -759,16 +788,22 @@
                     body: JSON.stringify({ posisi: sel.value }),
                 }).then(function (r) {
                     if (!r.ok) throw new Error();
-                    sel.dataset.awal = sel.value;
-                    warnai(sel);
-                    if (dlgBerkas && dlgBerkas.open) dlgBerkas.close();
-                    selBerkas = null;
-                    location.reload(); // supaya entri baru langsung muncul di Log
-                }).catch(function () {
-                    if (dlgBerkas && dlgBerkas.open) dlgBerkas.close();
-                    batalBerkas();
-                    alert('Gagal menyimpan posisi berkas fisik.');
-                });
+                            sel.dataset.awal = sel.value;
+        warnai(sel);
+        if (dlgBerkas && dlgBerkas.open) dlgBerkas.close();
+        try {
+            sessionStorage.setItem('toast.pending', JSON.stringify({
+                pesan: 'Berkas fisik memo ' + (sel.dataset.memo || '') + ' dipindah ke ' + sel.value + '.',
+                jenis: 'ok',
+            }));
+        } catch (e) { }
+        selBerkas = null;
+        location.reload(); // supaya entri baru langsung muncul di Log
+    }).catch(function () {
+        if (dlgBerkas && dlgBerkas.open) dlgBerkas.close();
+        batalBerkas();
+        window.tampilToast('Gagal menyimpan posisi berkas fisik.', 'error');
+    });
             }
 
             document.querySelectorAll('.js-berkas').forEach(function (sel) {

@@ -64,12 +64,6 @@
         .pf-btn:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
         .pf-btn--primary { background: #4f46e5; color: #fff; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
         .pf-btn--primary:hover { background: #4338ca; }
-        .pf-btn--ghost  { background: transparent; color: #4b5563; }
-        .pf-btn--ghost:hover { background: #f3f4f6; }
-        .pf-btn--danger { background: #e11d48; color: #fff; }
-        .pf-btn--danger:hover { background: #be123c; }
-        .pf-btn--danger-outline { background: #fff; color: #e11d48; border-color: #fecdd3; }
-        .pf-btn--danger-outline:hover { background: #fff1f2; }
         .pf-saved { font-size: .875rem; color: #059669; }
 
         .pf-warn { font-size: .875rem; color: #1f2937; background: #fffbeb; border: 1px solid #fde68a;
@@ -77,17 +71,6 @@
         .pf-link { background: none; border: 0; padding: 0; font: inherit; color: #4f46e5; text-decoration: underline; cursor: pointer; }
         .pf-ok   { font-size: .875rem; color: #059669; margin-top: .5rem; }
 
-        /* Zona hapus akun */
-        .pf-card--danger { border-color: #fecdd3; }
-        .pf-card--danger .pf-title { color: #be123c; }
-        .pf-danger-row { display: flex; flex-direction: column; gap: 1rem; }
-        @media (min-width: 640px) { .pf-danger-row { flex-direction: row; align-items: center; justify-content: space-between; } }
-        .pf-danger-row p { font-size: .875rem; color: #4b5563; max-width: 42rem; }
-
-        /* Modal konfirmasi */
-        .pf-modal { padding: 1.5rem; }
-        @media (min-width: 640px) { .pf-modal { padding: 2rem; } }
-        .pf-modal-actions { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 1.5rem; }
     </style>
 
     <div class="pf-page">
@@ -144,10 +127,6 @@
 
                 <section class="pf-card">
                     @include('profile.partials.update-password-form')
-                </section>
-
-                <section class="pf-card pf-card--danger">
-                    @include('profile.partials.delete-user-form')
                 </section>
             </div>
         </div>

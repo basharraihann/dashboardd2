@@ -115,12 +115,15 @@
     <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
         {{-- ===== Subjudul & aksi (judul sekarang ada di slot header) ===== --}}
-        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div>
-                <p id="ang-meta" class="text-sm text-slate-500">Memuat data...</p>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="min-w-0">
+                <p id="ang-meta" class="text-sm font-medium text-slate-600">Memuat data...</p>
+                <p id="ang-updated" class="mt-1 hidden text-xs text-slate-400">
+                    <span id="ang-updated-text"></span>
+                </p>
             </div>
 
-            <div class="flex flex-col sm:items-end gap-2 shrink-0">
+            <div class="shrink-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <button type="button" id="btn-source"
                         class="inline-flex justify-center items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm">
@@ -154,9 +157,6 @@
                         </a>
                     @endif
                 </div>
-                <p id="ang-updated" class="hidden text-xs text-slate-400 sm:text-right">
-                    <span id="ang-updated-text"></span>
-                </p>
             </div>
         </div>
 
@@ -234,7 +234,9 @@
                 <div>
                     <h3 class="text-base font-semibold text-slate-800">Grafik Anggaran</h3>
                     <p class="text-xs text-slate-400">Mengikuti filter Kegiatan sampai Akun dan kolom pencarian. Grafik
-                        per unit selalu menampilkan semua unit supaya bisa dibandingkan. M = miliar, jt = juta.</p>
+                        per unit selalu menampilkan semua unit supaya bisa dibandingkan. Klik batang unit untuk memilih
+                        unit (klik lagi untuk melepas), klik batang akun untuk memfilter akun. M = miliar, jt = juta.
+                    </p>
                 </div>
 
                 <div>
@@ -882,12 +884,36 @@
                 },
             };
 
+            // Plugin: pudarkan batang yang tidak sedang dipilih (opsi dimBars.dim(i) -> true = dipudarkan)
+            const dimBars = {
+                id: 'dimBars',
+                afterDatasetsDraw(chart, args, opt) {
+                    if (!opt || !opt.dim) return;
+                    const horiz = chart.options.indexAxis === 'y', ctx = chart.ctx;
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(255,255,255,.65)';
+                    chart.data.datasets.forEach((ds, di) => {
+                        const meta = chart.getDatasetMeta(di);
+                        if (meta.hidden) return;
+                        meta.data.forEach((bar, i) => {
+                            if (!opt.dim(i)) return;
+                            if (horiz) ctx.fillRect(Math.min(bar.x, bar.base), bar.y - bar.height / 2, Math.abs(bar.x - bar.base), bar.height);
+                            else ctx.fillRect(bar.x - bar.width / 2, Math.min(bar.y, bar.base), bar.width, Math.abs(bar.base - bar.y));
+                        });
+                    });
+                    ctx.restore();
+                },
+            };
+
             function mkChart(id, cfg) {
                 if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; }
                 const el = $(id);
                 if (!el) return;
                 cfg.options = Object.assign({ responsive: true, maintainAspectRatio: false, animation: false }, cfg.options);
-                cfg.plugins = [valueLabels];
+                if (cfg.options.onClick && !cfg.options.onHover) {
+                    cfg.options.onHover = (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
+                }
+                cfg.plugins = [dimBars, valueLabels];
                 CHARTS[id] = new Chart(el, cfg);
             }
 
@@ -922,6 +948,29 @@
                 $('ch-unit-wrap').style.height = hh + 'px';
                 $('ch-stack-wrap').style.height = hh + 'px';
 
+                // Klik batang unit -> centang / lepas unit itu di filter Unit Kerja (kartu & tabel ikut berubah).
+                // Batang "Sekretariat" (mode Gabung) mewakili semua Biro + Inspektorat.
+                const unitsOfKey = (k) => (chGroup && k === SEKRE)
+                    ? [...new Set(items.filter((i) => isBiro(i.unit)).map((i) => i.unit))]
+                    : [k];
+                const isSel = (k) => U.units.size > 0 && unitsOfKey(k).every((u) => U.units.has(u));
+                const pickUnit = (k) => {
+                    const us = unitsOfKey(k);
+                    if (!us.length) return;
+                    if (isSel(k)) us.forEach((u) => U.units.delete(u)); else us.forEach((u) => U.units.add(u));
+                    afterUnitsChange();
+                };
+                // Klik batang akun -> isi filter Akun lalu gulung ke tabel
+                const pickAkun = (kode) => {
+                    const on = F.akun !== kode;
+                    F.akun = on ? kode : '';
+                    currentPage = 1;
+                    pendingOpen = CH.some((c) => F[c]) ? 'all' : 'default';
+                    fillSel();
+                    render();
+                    if (on) { const t = $('ang-tb').closest('.card'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                };
+
                 // 1) Realisasi seluruh unit (batang tunggal 0-100%)
                 let P = 0, R = 0;
                 by.forEach((a) => { P += a.pagu; R += a.sd; });
@@ -949,6 +998,8 @@
                     data: { labels: units.map((u) => wrapLbl(unitName(u))), datasets: [{ data: units.map((u) => pctOf(A(u))), backgroundColor: '#2563eb', borderRadius: 4, maxBarThickness: 56 }] },
                     options: {
                         layout: { padding: { top: 22 } },
+                        interaction: { mode: 'index', axis: 'x', intersect: false },
+                        onClick: (e, els) => { if (els.length) { const k = units[els[0].index]; setTimeout(() => pickUnit(k), 0); } },
                         scales: {
                             y: { min: 0, max: 100, ticks: { callback: (v) => v + '%' }, grid: { color: '#e2e8f0' } },
                             x: { grid: { display: false } },
@@ -961,6 +1012,7 @@
                                     label: (c) => { const a = A(units[c.dataIndex]); return ['Realisasi ' + pct2(c.raw), 'Rp ' + rp(a.sd) + ' dari Rp ' + rp(a.pagu)]; },
                                 },
                             },
+                            dimBars: { dim: (i) => U.units.size > 0 && !isSel(units[i]) },
                             valueLabels: { fmt: (v) => pct2(v) },
                         },
                     },
@@ -986,6 +1038,8 @@
                     options: {
                         indexAxis: 'y',
                         layout: { padding: { right: 128 } },
+                        interaction: { mode: 'index', axis: 'y', intersect: false },
+                        onClick: (e, els) => { if (els.length) { const k = su[els[0].index]; setTimeout(() => pickUnit(k), 0); } },
                         scales: {
                             x: { stacked: true, max: pc ? 100 : undefined, grid: { color: '#e2e8f0' }, ticks: { callback: (v) => pc ? v + '%' : compact(v) } },
                             y: { stacked: true, grid: { display: false } },
@@ -1001,6 +1055,7 @@
                                     },
                                 },
                             },
+                            dimBars: { dim: (i) => U.units.size > 0 && !isSel(su[i]) },
                             valueLabels: {
                                 mode: 'center', stacked: true,
                                 // Angka ditulis di kanan batang: Realisasi, Outstanding (hanya bila ada), Sisa Efektif
@@ -1018,7 +1073,7 @@
 
                 // 4) 10 akun teratas (mengikuti filter unit juga). Outstanding dihitung sekali per MAK.
                 const mk = new Map();
-                items.filter((it) => inUnit(it) && match(it, 5) && matchQ(it, terms)).forEach((it) => {
+                items.filter((it) => inUnit(it) && match(it, 4) && matchQ(it, terms)).forEach((it) => {
                     const key = makKey(it), v = vals(it);
                     let m = mk.get(key);
                     if (!m) { m = { kode: String(it.akun_kode ?? ''), ur: it.akun_uraian || '', pagu: 0, sd: 0, out: Number(OUT[key]) || 0 }; mk.set(key, m); }
@@ -1041,6 +1096,8 @@
                     options: {
                         indexAxis: 'y',
                         layout: { padding: { right: 70 } },
+                        interaction: { mode: 'index', axis: 'y', intersect: false },
+                        onClick: (e, els) => { if (els.length) { const a = top[els[0].index]; setTimeout(() => pickAkun(a.kode), 0); } },
                         scales: {
                             x: { grid: { color: '#e2e8f0' }, ticks: { callback: (v) => compact(v) } },
                             y: { grid: { display: false } },
@@ -1053,6 +1110,7 @@
                                     label: (c) => (metric === 'out' ? 'Outstanding: Rp ' : 'Sisa Efektif: Rp ') + rp(c.raw),
                                 },
                             },
+                            dimBars: { dim: (i) => !!F.akun && F.akun !== top[i].kode },
                             valueLabels: { fmt: (v) => compact(v) },
                         },
                     },

@@ -13,7 +13,7 @@
         <style>
             #pengeluaran-riil-page {
                 font-family: Arial, sans-serif;
-                font-size: 13px;
+                font-size: 12px;
                 line-height: 1.6;
             }
 
@@ -23,16 +23,16 @@
             }
 
             #pengeluaran-riil-page .kop .l1 {
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: bold;
             }
 
             #pengeluaran-riil-page .kop .l2 {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #pengeluaran-riil-page .kop .l3 {
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: bold;
                 margin-top: 6px;
             }
