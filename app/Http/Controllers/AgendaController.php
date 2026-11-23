@@ -16,6 +16,7 @@ use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 use App\Services\MakSisaService;
 use App\Services\NomorMemoService;
+use Illuminate\Validation\Rule;
 
 class AgendaController extends Controller
 {
@@ -334,18 +335,26 @@ class AgendaController extends Controller
         $validated = $request->validate([
             'komponen_biaya' => 'required|array|min:1',
             'komponen_biaya.*' => 'string',
-            'jenis_uang_harian' => 'nullable|array',
-            'jenis_uang_harian.*' => 'string',
+
+            // Wajib kalau komponen "lumpsum" dicentang, selain itu boleh kosong.
+            'jenis_uang_harian' => [
+                'nullable',
+                'array',
+                Rule::requiredIf(fn() => in_array('lumpsum', (array) $request->input('komponen_biaya', []))),
+            ],
+            'jenis_uang_harian.*' => ['string', Rule::in(array_keys(self::UH_FIELD_MAP))],
+
             'tanggal_mulai.*' => ['nullable', 'date', "after_or_equal:$min", "before_or_equal:$max"],
             'tanggal_selesai.*' => ['nullable', 'date', "after_or_equal:$min", "before_or_equal:$max"],
         ], [
             'komponen_biaya.required' => 'Pilih minimal satu komponen biaya.',
+            'jenis_uang_harian.required' => 'Pilih minimal satu jenis uang harian karena komponen Uang Harian dicentang.',
+            'jenis_uang_harian.*.in' => 'Jenis uang harian tidak valid.',
             'tanggal_mulai.*.after_or_equal' => 'Tanggal peserta tidak boleh sebelum rentang surat tugas.',
             'tanggal_mulai.*.before_or_equal' => 'Tanggal peserta tidak boleh melewati rentang surat tugas.',
             'tanggal_selesai.*.after_or_equal' => 'Tanggal peserta tidak boleh sebelum rentang surat tugas.',
             'tanggal_selesai.*.before_or_equal' => 'Tanggal peserta tidak boleh melewati rentang surat tugas.',
         ]);
-
         // Tanggal mulai tidak boleh lebih besar dari tanggal selesai (per peserta)
         foreach ((array) $request->input('tanggal_mulai', []) as $pid => $m) {
             $s = $request->input("tanggal_selesai.$pid");
@@ -375,7 +384,7 @@ class AgendaController extends Controller
 
         $komponenAktif = $validated['komponen_biaya'];
         $activeUhFields = in_array('lumpsum', $komponenAktif)
-            ? array_intersect_key(self::UH_FIELD_MAP, array_flip($validated['jenis_uang_harian']))
+            ? array_intersect_key(self::UH_FIELD_MAP, array_flip($validated['jenis_uang_harian'] ?? []))
             : [];
 
         // peng_riil diproses khusus (multi-entry), jadi dikeluarkan dari field generic.
