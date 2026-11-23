@@ -170,6 +170,21 @@
 
                 $pnsList = $pegawaiList->filter(fn($p) => ($p->status_kepegawaian ?? 'PNS') === 'PNS')->values();
                 $nonPnsList = $pegawaiList->filter(fn($p) => ($p->status_kepegawaian ?? 'PNS') === 'Non PNS')->values();
+
+                $pillBtnSend = 'inline-flex items-center gap-1.5 px-3 py-2 lg:py-1.5 rounded-md text-xs font-semibold border border-indigo-500 text-indigo-600 bg-white hover:bg-indigo-50 transition';
+
+                $groups = [
+                    [
+                        'key' => 'pns',
+                        // ... (isi lama tetap)
+                        'memo_key' => 'agenda-' . $agenda->id . '-pns',
+                    ],
+                    [
+                        'key' => 'nonpns',
+                        // ... (isi lama tetap)
+                        'memo_key' => 'agenda-' . $agenda->id . '-non_pns',
+                    ],
+                ];
             @endphp
 
             @if ($errors->any())

@@ -13,7 +13,7 @@
         <style>
             #rincian-biaya-page {
                 font-family: Arial, sans-serif;
-                font-size: 13px;
+                font-size: 12px;
                 line-height: 1.5;
             }
 
@@ -25,16 +25,16 @@
             }
 
             #rincian-biaya-page .kop .l1 {
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: bold;
             }
 
             #rincian-biaya-page .kop .l2 {
-                font-size: 13px;
+                font-size: 12px;
             }
 
             #rincian-biaya-page .kop .l3 {
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: bold;
                 margin-top: 4px;
             }
