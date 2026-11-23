@@ -79,6 +79,7 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
 
             @php
                 // Menu dikelompokkan. 'label' => null berarti item tanpa judul kelompok.
+                // 'roles' => daftar role yang boleh melihat item. Tanpa 'roles' = semua role.
                 $groups = [
                     [
                         'label' => 'SPJ',
@@ -91,30 +92,35 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                             ],
                             [
                                 'route' => 'agendas.index',
+                                'roles' => ['user', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('agendas.*'),
                                 'label' => __('Agenda'),
                                 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
                             ],
                             [
                                 'route' => 'memo.index',
+                                'roles' => ['user', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('memo.*'),
                                 'label' => __('Memorandum'),
                                 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
                             ],
                             [
                                 'route' => 'nominatif.index',
+                                'roles' => ['user', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('nominatif.*'),
                                 'label' => __('Nominatif'),
                                 'icon' => 'M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z'
                             ],
                             [
                                 'route' => 'pegawais.index',
+                                'roles' => ['tu_unit', 'tu_sekretariat', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('pegawais.*'),
                                 'label' => __('Pegawai'),
                                 'icon' => 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4'
                             ],
                             [
                                 'route' => 'mak-options.index',
+                                'roles' => ['tu_unit', 'tu_sekretariat', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('mak-options.*'),
                                 'label' => __('Nomor MAK'),
                                 'icon' => 'M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z'
@@ -131,16 +137,16 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                                 'label' => __('Realisasi Anggaran'),
                                 'icon' => 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z'
                             ],
-
                             [
                                 'route' => 'monitoring.index',
+                                'roles' => ['user', 'tu_unit', 'tu_sekretariat', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('monitoring.*'),
                                 'label' => __('Monitoring Memo'),
                                 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
                             ],
-
                             [
                                 'route' => 'unduh.index',
+                                'roles' => ['user', 'tu_unit', 'tu_sekretariat', 'admin', 'super_admin'],
                                 'active' => request()->routeIs('unduh.*'),
                                 'label' => __('Unduh Massal'),
                                 'icon' => 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4'
@@ -149,7 +155,7 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                     ],
                 ];
 
-                if (Auth::user()?->isAdmin()) {
+                if (in_array(Auth::user()?->role, ['admin', 'super_admin'], true)) {
                     // Pemetaan Unit: masuk ke kelompok "Anggaran" (indeks 1), hanya terlihat oleh admin
                     $groups[1]['items'][] = [
                         'route' => 'anggaran.pemetaan',
@@ -170,6 +176,20 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                         ],
                     ];
                 }
+
+                // Filter item sesuai role user yang login, lalu buang kelompok yang kosong
+                $role = Auth::user()?->role;
+                $groups = collect($groups)
+                    ->map(function ($group) use ($role) {
+                        $group['items'] = collect($group['items'])
+                            ->filter(fn($item) => empty($item['roles']) || in_array($role, $item['roles'], true))
+                            ->values()
+                            ->all();
+                        return $group;
+                    })
+                    ->filter(fn($group) => count($group['items']) > 0)
+                    ->values()
+                    ->all();
 
                 // Menu bawah: Profile + Log out
                 $footer = [
@@ -215,8 +235,7 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                     <div x-show="open || !(sidebarOpen || !sidebarCollapsed)" class="space-y-1">
                         @foreach ($group['items'] as $item)
                             <a href="{{ route($item['route']) }}" :title="sidebarCollapsed ? '{{ $item['label'] }}' : ''"
-                                class="sb-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition
-                                                                                                                                            {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
+                                class="sb-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
                                 :class="sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''">
                                 <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                                     stroke-width="2">
@@ -248,8 +267,7 @@ sidebarCollapsed ? 'lg:w-20' : 'lg:w-60'
                     </form>
                 @else
                     <a href="{{ route($item['route']) }}" :title="sidebarCollapsed ? '{{ $item['label'] }}' : ''"
-                        class="sb-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition
-                                                                                                                                    {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
+                        class="sb-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition {{ $item['active'] ? 'sb-active' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900' }}"
                         :class="sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''">
                         <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}" />

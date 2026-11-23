@@ -38,7 +38,13 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->role === self::ROLE_ADMIN;
+        return $this->role === 'admin';
+    }
+
+    public function canApproveMemo(): bool
+    {
+        return $this->isAdmin()
+            || ($this->role === 'tu' && $this->unit?->is_sekretariat);
     }
 
     /**
@@ -82,4 +88,6 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+
 }

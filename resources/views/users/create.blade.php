@@ -4,6 +4,75 @@
             {{ __('Tambah User Baru') }}
         </h2>
     </x-slot>
+    @php
+        // Daftar role yang tampil di form. Tambah role baru cukup menambah satu blok di sini.
+        // 'unit' => true berarti unit wajib dipilih untuk role tersebut.
+        $roleOptions = [
+            [
+                'value' => 'user',
+                'title' => 'Staf / User',
+                'badge' => 'Staf',
+                'badge_class' => 'bg-emerald-100 text-emerald-700',
+                'desc' => 'Operator SPJ di unitnya.',
+                'unit' => true,
+                'allow' => ['Dashboard', 'Agenda, Memorandum, Nominatif', 'Lihat Realisasi Anggaran', 'Lihat Monitoring Memo', 'Unduh Massal'],
+                'deny' => ['Pegawai, Nomor MAK', 'Approval memo, upload anggaran'],
+            ],
+            [
+                'value' => 'tu_unit',
+                'title' => 'TU Unit',
+                'badge' => 'TU Unit',
+                'badge_class' => 'bg-sky-100 text-sky-700',
+                'desc' => 'Tata Usaha di tingkat unit kerja.',
+                'unit' => true,
+                'allow' => ['Dashboard', 'Pegawai, Nomor MAK', 'Lihat Realisasi Anggaran', 'Lihat Monitoring Memo', 'Unduh Massal'],
+                'deny' => ['Agenda, Memorandum, Nominatif', 'Approval memo, upload anggaran'],
+            ],
+            [
+                'value' => 'tu_sekretariat',
+                'title' => 'TU Sekretariat',
+                'badge' => 'TU Sekr.',
+                'badge_class' => 'bg-cyan-100 text-cyan-700',
+                'desc' => 'Tata Usaha Sekretariat (Keuangan Sesdep).',
+                'unit' => false,
+                'allow' => ['Dashboard', 'Pegawai, Nomor MAK', 'Lihat Realisasi Anggaran', 'Approval Monitoring Memo', 'Unduh Massal'],
+                'deny' => ['Agenda, Memorandum, Nominatif', 'Upload anggaran'],
+            ],
+            [
+                'value' => 'eselon2',
+                'title' => 'Eselon II',
+                'badge' => 'Eselon II',
+                'badge_class' => 'bg-amber-100 text-amber-700',
+                'desc' => 'Pimpinan: hanya memantau.',
+                'unit' => false,
+                'allow' => ['Dashboard', 'Lihat Realisasi Anggaran'],
+                'deny' => ['Monitoring Memo, Unduh Massal', 'Semua menu pengelolaan'],
+            ],
+            [
+                'value' => 'admin',
+                'title' => 'Administrator',
+                'badge' => 'Admin',
+                'badge_class' => 'bg-purple-100 text-purple-700',
+                'desc' => 'Pengelola sistem untuk semua unit.',
+                'unit' => false,
+                'allow' => ['Semua menu Staf dan TU', 'Upload Realisasi Anggaran', 'Approval Monitoring Memo', 'Pemetaan Unit', 'User Manajemen'],
+                'deny' => [],
+            ],
+            [
+                'value' => 'super_admin',
+                'title' => 'Super Admin',
+                'badge' => 'Super',
+                'badge_class' => 'bg-rose-100 text-rose-700',
+                'desc' => 'Akses penuh tanpa batasan.',
+                'unit' => false,
+                'allow' => ['Semua menu dan semua fitur', 'Semua unit'],
+                'deny' => [],
+            ],
+        ];
+
+        $unitRequiredRoles = collect($roleOptions)->where('unit', true)->pluck('value')->values();
+    @endphp
+
     <div class="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
 
         <!-- Subjudul (judul halaman ada di header) -->
@@ -74,8 +143,8 @@
                                 </option>
                             @endforeach
                         </select>
-                        <p class="text-xs text-gray-400 mt-1">Wajib untuk Staf dan TU, karena menentukan data yang bisa
-                            dilihat. Boleh kosong untuk Administrator.</p>
+                        <p class="text-xs text-gray-400 mt-1">Wajib untuk Staf dan TU Unit, karena menentukan data yang
+                            bisa dilihat. Boleh kosong untuk role lainnya.</p>
                         @error('unit_id')
                             <p class="text-xs text-rose-500 mt-1">{{ $message }}</p>
                         @enderror
@@ -87,50 +156,31 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         Hak Akses / Role <span class="text-rose-500">*</span>
                     </label>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <label
-                            class="relative flex flex-col p-4 rounded-xl border-2 cursor-pointer transition focus:outline-none has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/30 border-gray-200 hover:border-gray-300">
-                            <div class="flex items-center justify-between mb-1 gap-2">
-                                <div class="flex items-center gap-2">
-                                    <input type="radio" name="role" value="user" {{ old('role', 'user') == 'user' ? 'checked' : '' }}
-                                        class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300">
-                                    <span class="font-semibold text-gray-900 text-sm">Staf / User</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                        @foreach ($roleOptions as $role)
+                            <label
+                                class="relative flex flex-col p-4 rounded-xl border-2 cursor-pointer transition focus:outline-none has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/30 border-gray-200 hover:border-gray-300">
+                                <div class="flex items-center justify-between mb-2 gap-2">
+                                    <div class="flex items-center gap-2">
+                                        <input type="radio" name="role" value="{{ $role['value'] }}"
+                                            {{ old('role', 'user') == $role['value'] ? 'checked' : '' }}
+                                            class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                        <span class="font-semibold text-gray-900 text-sm">{{ $role['title'] }}</span>
+                                    </div>
+                                    <span
+                                        class="text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap {{ $role['badge_class'] }}">{{ $role['badge'] }}</span>
                                 </div>
-                                <span
-                                    class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">Staf</span>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">Dapat mengelola Agenda dan Nomor Memo
-                                unitnya. Tidak dapat mengubah status memo, upload anggaran, atau mengelola user.</p>
-                        </label>
-
-                        <label
-                            class="relative flex flex-col p-4 rounded-xl border-2 cursor-pointer transition focus:outline-none has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/30 border-gray-200 hover:border-gray-300">
-                            <div class="flex items-center justify-between mb-1 gap-2">
-                                <div class="flex items-center gap-2">
-                                    <input type="radio" name="role" value="tu" {{ old('role') == 'tu' ? 'checked' : '' }}
-                                        class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300">
-                                    <span class="font-semibold text-gray-900 text-sm">Tata Usaha</span>
-                                </div>
-                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-sky-100 text-sky-700">TU</span>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">Seperti Staf, ditambah dapat mengubah status memo dan
-                                meng-upload anggaran. Tidak dapat mengelola user.</p>
-                        </label>
-
-                        <label
-                            class="relative flex flex-col p-4 rounded-xl border-2 cursor-pointer transition focus:outline-none has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/30 border-gray-200 hover:border-gray-300">
-                            <div class="flex items-center justify-between mb-1 gap-2">
-                                <div class="flex items-center gap-2">
-                                    <input type="radio" name="role" value="admin" {{ old('role') == 'admin' ? 'checked' : '' }}
-                                        class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-gray-300">
-                                    <span class="font-semibold text-gray-900 text-sm">Administrator</span>
-                                </div>
-                                <span
-                                    class="text-xs font-semibold px-2 py-0.5 rounded bg-purple-100 text-purple-700">Admin</span>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">Akses penuh ke seluruh sistem dan semua unit,
-                                termasuk kelola User Manajemen.</p>
-                        </label>
+                                <p class="text-xs text-gray-500 mb-2">{{ $role['desc'] }}</p>
+                                <ul class="space-y-1 text-xs text-gray-600">
+                                    @foreach ($role['allow'] as $item)
+                                        <li class="flex gap-1.5"><span class="text-emerald-600">✓</span> {{ $item }}</li>
+                                    @endforeach
+                                    @foreach ($role['deny'] as $item)
+                                        <li class="flex gap-1.5 text-gray-400"><span>✕</span> {{ $item }}</li>
+                                    @endforeach
+                                </ul>
+                            </label>
+                        @endforeach
                     </div>
                     @error('role')
                         <p class="text-xs text-rose-500 mt-1">{{ $message }}</p>
@@ -178,16 +228,17 @@
     </div>
 
     <script>
-        // Unit wajib untuk Staf dan TU, opsional untuk Administrator.
+        // Unit wajib hanya untuk role tertentu (Staf dan TU Unit), opsional untuk lainnya.
         (function () {
+            const unitRequiredRoles = @json($unitRequiredRoles);
             const unit = document.getElementById('unit_id');
             const star = document.getElementById('unit-required');
 
             function sync() {
                 const checked = document.querySelector('input[type="radio"][name="role"]:checked');
-                const isAdmin = checked && checked.value === 'admin';
-                unit.required = !isAdmin;
-                star.classList.toggle('hidden', isAdmin);
+                const needUnit = checked && unitRequiredRoles.includes(checked.value);
+                unit.required = needUnit;
+                star.classList.toggle('hidden', !needUnit);
             }
 
             document.querySelectorAll('input[type="radio"][name="role"]').forEach(function (el) {

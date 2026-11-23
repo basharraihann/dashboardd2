@@ -21,8 +21,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Ubah status memo (SAKTI/SP2D/batal) + aksi massal di Monitoring Memo,
         // plus aksi alur Keuangan Sesdep (K2, K3, Input SAKTI, Selesai OTP, putusan pengajuan).
-        Gate::define('kelola-anggaran', fn(User $user) => $user->isTu());
-
+        Gate::define('kelola-anggaran', fn(User $user) => $user->canApproveMemo());
         // Membuat, mengedit, menghapus, mengirim memo, dan mengajukan pengembalian.
         // Hanya operator unit: Keuangan Sesdep (TU) hanya memverifikasi dan memproses.
         // Admin tetap lolos lewat Gate::before.

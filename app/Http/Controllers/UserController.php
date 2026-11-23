@@ -18,16 +18,31 @@ class UserController extends Controller
      */
     private function roles(): array
     {
-        return [User::ROLE_ADMIN, User::ROLE_USER, User::ROLE_TU];
+        return [
+            User::ROLE_USER,
+            User::ROLE_TU_UNIT,
+            User::ROLE_TU_SEKRETARIAT,
+            User::ROLE_ESELON2,
+            User::ROLE_ADMIN,
+            User::ROLE_SUPER_ADMIN,
+        ];
     }
 
     /**
-     * Pesan validasi khusus (unit wajib untuk selain admin).
+     * Role yang wajib punya unit (data dibatasi per unit).
+     */
+    private function unitRequiredRoles(): string
+    {
+        return implode(',', [User::ROLE_USER, User::ROLE_TU_UNIT]);
+    }
+
+    /**
+     * Pesan validasi khusus.
      */
     private function messages(): array
     {
         return [
-            'unit_id.required_unless' => 'Unit wajib dipilih untuk role selain Administrator.',
+            'unit_id.required_if' => 'Unit wajib dipilih untuk role Staf dan TU Unit.',
             'role.in' => 'Role yang dipilih tidak valid.',
         ];
     }
@@ -65,8 +80,8 @@ class UserController extends Controller
         $units = Unit::orderBy('id')->get();
 
         $totalUsers = User::count();
-        $totalAdmin = User::where('role', User::ROLE_ADMIN)->count();
-        $totalTu = User::where('role', User::ROLE_TU)->count();
+        $totalAdmin = User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])->count();
+        $totalTu = User::whereIn('role', [User::ROLE_TU_UNIT, User::ROLE_TU_SEKRETARIAT])->count();
         $totalStaf = User::where('role', User::ROLE_USER)->count();
 
         return view('users.index', compact('users', 'units', 'totalUsers', 'totalAdmin', 'totalTu', 'totalStaf'));
@@ -91,7 +106,7 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:50', 'unique:' . User::class, 'regex:/^[a-zA-Z0-9_]+$/'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
-            'unit_id' => ['required_unless:role,' . User::ROLE_ADMIN, 'nullable', 'exists:units,id'],
+            'unit_id' => ['required_if:role,' . $this->unitRequiredRoles(), 'nullable', 'exists:units,id'],
             'role' => ['required', 'string', Rule::in($this->roles())],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ], $this->messages());
@@ -127,7 +142,7 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:50', Rule::unique('users')->ignore($user->id), 'regex:/^[a-zA-Z0-9_]+$/'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'unit_id' => ['required_unless:role,' . User::ROLE_ADMIN, 'nullable', 'exists:units,id'],
+            'unit_id' => ['required_if:role,' . $this->unitRequiredRoles(), 'nullable', 'exists:units,id'],
             'role' => ['required', 'string', Rule::in($this->roles())],
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
         ], $this->messages());

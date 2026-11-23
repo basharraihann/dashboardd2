@@ -23,15 +23,15 @@ class DashboardController extends Controller
             ->whereYear('tanggal_mulai', $now->year)
             ->count();
 
-        // Dana diajukan (LS) bulan ini, lengkap dengan breakdown per jenis
-        $danaLsBulanIni = $this->danaLsBulan($now->month, $now->year);
+        // Dana diajukan bulan ini, dipecah per tipe pembayaran (LS, UP, GUP, TUP, PTUP)
+        $danaBulanIni = $this->danaBulan($now->month, $now->year);
 
         // Data chart per bulan (Jan - Des) tahun berjalan
         $chartLabels = [];
         $chartData = [];
         for ($i = 1; $i <= 12; $i++) {
             $chartLabels[] = Carbon::create()->month($i)->translatedFormat('M');
-            $chartData[] = $this->danaLsBulan($i, $now->year)['total'];
+            $chartData[] = $this->danaBulan($i, $now->year)['total'];
         }
         $chartKosong = array_sum($chartData) == 0;
 
@@ -43,7 +43,7 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'agendaBulanIni',
-            'danaLsBulanIni',
+            'danaBulanIni',
             'chartLabels',
             'chartData',
             'chartKosong',
@@ -389,18 +389,32 @@ class DashboardController extends Controller
         return $hasil;
     }
 
+    /** Nama lengkap tiap tipe pembayaran (kode = key di MemoEntry::TIPE_PEMBAYARAN). */
+    private const NAMA_TIPE = [
+        'ls' => 'Pembayaran Langsung',
+        'up' => 'Uang Persediaan',
+        'gup' => 'Ganti Uang Persediaan',
+        'tup' => 'Tambahan Uang Persediaan',
+        'ptup' => 'Pertanggungjawaban TUP',
+    ];
+
     /**
-     * Dana yang diajukan lewat LS pada bulan & tahun tertentu, dipecah per jenis:
-     * - Perdin: dari Agenda yang nomor_memo_pns/non_pns sudah diisi
-     * - Konsumsi & Honorarium: dari MemoEntry, dipisah berdasarkan jenis_memo
+     * Dana yang diajukan pada bulan & tahun tertentu, dipecah per tipe pembayaran (LS, UP, GUP, TUP, PTUP).
+     * - Perdin dari Agenda (nomor memo sudah diisi). Agenda tidak punya tipe sendiri, dianggap LS
+     *   kecuali kolom tipe_pembayaran di agenda terisi.
+     * - Semua jenis memo mandiri dari MemoEntry, dikelompokkan per tipe_pembayaran (kosong = LS).
+     *
+     * @return array{tipe: array<int, array{key: string, kode: string, nama: string, nominal: int}>, total: int}
      */
-    private function danaLsBulan(int $bulan, int $tahun): array
+    private function danaBulan(int $bulan, int $tahun): array
     {
+        $perTipe = [];
+
         $agendas = Agenda::whereMonth('tanggal_mulai', $bulan)
             ->whereYear('tanggal_mulai', $tahun)
             ->get();
 
-        $totalPerdin = $agendas->sum(function ($agenda) {
+        foreach ($agendas as $agenda) {
             $total = 0;
 
             if (!empty($agenda->nomor_memo_pns)) {
@@ -411,21 +425,48 @@ class DashboardController extends Controller
                 $total += $agenda->biaya_non_asn;
             }
 
-            return $total;
-        });
+            if ($total > 0) {
+                $k = MemoEntry::normalisasiTipe($agenda->tipe_pembayaran ?? '') ?: 'ls';
+                $perTipe[$k] = ($perTipe[$k] ?? 0) + (int) $total;
+            }
+        }
 
-        $entries = MemoEntry::whereMonth('tanggal_memo', $bulan)
+        $entries = MemoEntry::selectRaw('tipe_pembayaran, SUM(nominal) as total')
+            ->whereMonth('tanggal_memo', $bulan)
             ->whereYear('tanggal_memo', $tahun)
-            ->get();
+            ->groupBy('tipe_pembayaran')
+            ->pluck('total', 'tipe_pembayaran');
 
-        $totalKonsumsi = $entries->where('jenis_memo', 'konsumsi')->sum('nominal');
-        $totalHonorarium = $entries->where('jenis_memo', 'honorarium')->sum('nominal');
+        foreach ($entries as $tipe => $nominal) {
+            $k = MemoEntry::normalisasiTipe((string) $tipe) ?: 'ls';
+            $perTipe[$k] = ($perTipe[$k] ?? 0) + (int) $nominal;
+        }
+
+        // Urutan tetap (LS, UP, GUP, TUP, PTUP); tipe yang diketik manual ditaruh di bawahnya
+        $urutan = array_keys(MemoEntry::TIPE_PEMBAYARAN);
+        $tipe = [];
+        foreach ($urutan as $k) {
+            $tipe[] = [
+                'key' => $k,
+                'kode' => strtoupper($k),
+                'nama' => self::NAMA_TIPE[$k] ?? '',
+                'nominal' => (int) ($perTipe[$k] ?? 0),
+            ];
+        }
+        foreach ($perTipe as $k => $nominal) {
+            if (!in_array($k, $urutan, true)) {
+                $tipe[] = [
+                    'key' => (string) $k,
+                    'kode' => mb_strimwidth((string) $k, 0, 12, '…'),
+                    'nama' => 'Tipe lain',
+                    'nominal' => (int) $nominal,
+                ];
+            }
+        }
 
         return [
-            'perdin' => $totalPerdin,
-            'konsumsi' => $totalKonsumsi,
-            'honorarium' => $totalHonorarium,
-            'total' => $totalPerdin + $totalKonsumsi + $totalHonorarium,
+            'tipe' => $tipe,
+            'total' => array_sum(array_column($tipe, 'nominal')),
         ];
     }
 
