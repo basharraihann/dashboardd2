@@ -384,7 +384,7 @@
                     {{ $slot }}
                 </div>
             </div>
-            <div class="city-copy">&copy;2026 SPJ MKDI &mdash; Welcome Pikmin</div>
+            <div class="city-copy">&copy;2026 Deputi Bidang Koordinasi Usaha Pangan dan Pertanian</div>
         </div>
 
     @else

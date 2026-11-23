@@ -7,24 +7,10 @@
     </x-slot>
 
     <style>
-        /* Tabel: di layar kecil bisa digeser ke samping, di desktop muat penuh */
-        .ang-scroll {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .ang-scroll table {
-            min-width: 1250px;
-        }
-
-        @media (min-width: 1024px) {
-            .ang-scroll {
-                overflow-x: visible;
-            }
-
-            .ang-scroll table {
-                min-width: 0;
-            }
+        /* Tabel selalu muat di lebar kartu (tanpa geser kanan-kiri); ukuran huruf mengecil otomatis di layar yang lebih sempit */
+        .ang-scroll table,
+        .ang-scroll thead {
+            font-size: clamp(9.5px, 0.85vw, 13px);
         }
 
         /* Tabel bergaris: garis tipis antar baris dan antar kolom */
@@ -431,17 +417,17 @@
                 <div class="ang-scroll">
                     <table class="w-full table-fixed text-[11px] leading-tight">
                         <colgroup>
-                            <col style="width:11%">
-                            <col style="width:17%">
-                            <col style="width:8%">
+                            <col style="width:9%">
+                            <col style="width:13%">
+                            <col style="width:7%">
                             <col style="width:10%">
                             <col style="width:9%">
-                            <col style="width:8%">
                             <col style="width:9%">
-                            <col style="width:5%">
                             <col style="width:9%">
-                            <col style="width:7%">
-                            <col style="width:7%">
+                            <col style="width:6%">
+                            <col style="width:9%">
+                            <col style="width:9%">
+                            <col style="width:10%">
                         </colgroup>
                         <thead style="background:#2563eb" class="text-[11px] text-white sticky top-0 z-10">
                             <tr>
@@ -821,7 +807,7 @@
             const CHARTS = {};
             let chMode = 'rp';   // 'rp' = nominal, 'pct' = persen terhadap pagu
             let chGroup = true;  // true = Biro + Inspektorat digabung jadi Sekretariat Kementerian
-            const SEKRE = 'SETMENKO';
+            const SEKRE = 'Sekretariat Kementerian Koordinator Bidang Pangan';
             const isBiro = (u) => /biro|inspektorat/i.test(u);
             const groupKey = (u) => isBiro(u) ? SEKRE : u;
 
