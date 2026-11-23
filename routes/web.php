@@ -14,6 +14,7 @@ use App\Http\Controllers\NominatifController;
 use App\Http\Controllers\NominatifCustomController;
 use App\Http\Controllers\PegawaiController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UnduhMassalController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BerkasFisikController;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +38,18 @@ Route::middleware('auth')->group(function () {
             Route::get('/', 'edit')->name('edit');
             Route::patch('/', 'update')->name('update');
             Route::delete('/', 'destroy')->name('destroy');
+        });
+
+    // Unduh massal dokumen memo (ZIP). Keuangan: lintas unit. Unit kerja: hanya unitnya sendiri.
+    Route::controller(UnduhMassalController::class)
+        ->prefix('unduh-massal')
+        ->name('unduh.')
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'unduh')->name('zip');
+            Route::get('/', 'index')->name('index');
+            Route::get('excel', 'excel')->name('excel');   // baru
+            Route::post('/', 'unduh')->name('zip');
         });
 
     // Agenda: peserta, anggaran & dokumen
@@ -130,8 +143,10 @@ Route::middleware('auth')->group(function () {
                 Route::post('{memo}/ubah-nomor-sakti', 'ubahNomorSakti')->where('memo', $pola)->name('ubah-nomor-sakti');
                 Route::post('{memo}/selesai-otp', 'selesaiOtp')->where('memo', $pola)->name('selesai-otp');
                 Route::post('{memo}/berkas-fisik', [BerkasFisikController::class, 'simpan'])
+                    ->where('memo', $pola)
                     ->name('berkas-fisik');
-                Route::post('{memo}/tarik-kembali', [MemoTahapController::class, 'tarikKembali'])
+                Route::post('{memo}/tarik-kembali', 'tarikKembali')
+                    ->where('memo', $pola)
                     ->name('tarik-kembali');
             });
         });

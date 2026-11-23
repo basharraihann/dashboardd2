@@ -139,7 +139,7 @@ class MonitoringMemoController extends Controller
             ->values();
     }
 
-    private function semuaMemo(bool $lintasUnit = false)
+    public function semuaMemo(bool $lintasUnit = false)
     {
         $rows = collect();
 
