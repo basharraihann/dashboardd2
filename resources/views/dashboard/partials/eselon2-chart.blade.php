@@ -3,6 +3,7 @@
         $program = collect($serapan['tree'])->where('depth', 0)->values();
         $chartProgram = [
             'labels' => $program->map(fn($t) => trim($t['kode'] . ' ' . $t['uraian']))->all(),
+            'kode' => $program->pluck('kode')->all(),
             'realisasi' => $program->pluck('sd')->all(),
             'outstanding' => $program->map(fn($t) => $t['out'] ?? 0)->all(),
             'sisa' => $program->map(fn($t) => max(0, $t['efektif'] ?? $t['sisa']))->all(),
@@ -12,23 +13,25 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {{-- Komposisi per program --}}
-        <div class="min-w-0 bg-white shadow-sm rounded-2xl border border-gray-100 p-5">
+        <div class="min-w-0 bg-white shadow-sm rounded-2xl border border-gray-100 p-4">
             <h4 class="font-semibold text-gray-800 mb-0.5">Komposisi pagu per program</h4>
-            <p class="text-sm text-gray-500 mb-4">Realisasi, outstanding, dan sisa efektif (Rp).</p>
+            <p class="text-sm text-gray-500">Realisasi, outstanding, dan sisa efektif (Rp).</p>
+            <p class="text-xs text-gray-400 mb-2">Klik bar untuk melihat rinciannya di tabel.</p>
             <div class="relative h-[260px]">
                 <canvas id="chartProgram"></canvas>
             </div>
         </div>
 
         {{-- Serapan per RO --}}
-        <div class="min-w-0 bg-white shadow-sm rounded-2xl border border-gray-100 p-5">
-            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div class="min-w-0 bg-white shadow-sm rounded-2xl border border-gray-100 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
                 <div>
                     <h4 class="font-semibold text-gray-800 mb-0.5">Serapan per RO</h4>
                     <p class="text-sm text-gray-500">
                         Persen terhadap pagu RO. Garis putus-putus = target
                         {{ number_format($target, 1, ',', '.') }}%.
                     </p>
+                    <p class="text-xs text-gray-400">Klik bar untuk melihat rinciannya di tabel.</p>
                 </div>
                 @if ($jumlahRo > 0)
                     <label class="flex items-center gap-2 text-xs text-gray-500">
@@ -44,8 +47,9 @@
             </div>
 
             @if ($jumlahRo === 0)
-                <div class="h-[400px] flex items-center justify-center text-sm text-gray-400">Belum ada RO dengan pagu.</div>
+                <div class="h-[260px] flex items-center justify-center text-sm text-gray-400">Belum ada RO dengan pagu.</div>
             @else
+                {{-- Tinggi tetap; kalau RO banyak, daftar discroll di dalam kartu --}}
                 <div class="h-[260px] overflow-y-auto">
                     <div class="relative" style="height: {{ max(240, $jumlahRo * 26 + 60) }}px">
                         <canvas id="chartRo"></canvas>
@@ -69,10 +73,16 @@
             };
             const isMobile = window.innerWidth < 640;
             const font = { size: isMobile ? 10 : 12 };
+            const legend = { position: 'bottom', labels: { boxWidth: 10, padding: 10, font } };
             const TARGET = {{ (float) $target }};
 
             // Warna disamakan dengan kartu KPI
             const WARNA = { realisasi: '#0f766e', outstanding: '#9333ea', sisa: '#4ade80' };
+
+            // Klik bar -> tabel Serapan Anggaran membuka dan menyorot baris terkait
+            const fokus = (kode, depth) =>
+                window.dispatchEvent(new CustomEvent('fokus-serapan', { detail: { kode, depth } }));
+            const pointer = (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
 
             // ---- Komposisi per program (Rp) ----
             const p = @json($chartProgram);
@@ -81,15 +91,18 @@
                 data: {
                     labels: p.labels,
                     datasets: [
-                        { label: 'Realisasi', data: p.realisasi, backgroundColor: WARNA.realisasi, maxBarThickness: 40 },
-                        { label: 'Outstanding', data: p.outstanding, backgroundColor: WARNA.outstanding, maxBarThickness: 40 },
-                        { label: 'Sisa efektif', data: p.sisa, backgroundColor: WARNA.sisa, maxBarThickness: 40 },
+                        { label: 'Realisasi', data: p.realisasi, backgroundColor: WARNA.realisasi, maxBarThickness: 28 },
+                        { label: 'Outstanding', data: p.outstanding, backgroundColor: WARNA.outstanding, maxBarThickness: 28 },
+                        { label: 'Sisa efektif', data: p.sisa, backgroundColor: WARNA.sisa, maxBarThickness: 28 },
                     ]
                 },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    onClick: (e, els) => { if (els.length) fokus(p.kode[els[0].index], 0); },
+                    onHover: pointer,
                     plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + rp(c.parsed.x) } }
+                        legend,
+                        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + rp(c.parsed.x) } }
                     },
                     scales: {
                         x: { stacked: true, ticks: { font, callback: singkat } },
@@ -97,7 +110,6 @@
                             stacked: true, grid: { display: false },
                             ticks: {
                                 font,
-                                // Label panjang dipotong supaya tidak menggeser area chart
                                 callback: function (v) {
                                     const t = this.getLabelForValue(v);
                                     return t.length > 16 ? t.slice(0, 16) + '…' : t;
@@ -143,16 +155,19 @@
                 data: {
                     labels: [],
                     datasets: [
-                        { label: 'Realisasi', data: [], backgroundColor: WARNA.realisasi, maxBarThickness: 22 },
-                        { label: 'Outstanding', data: [], backgroundColor: WARNA.outstanding, maxBarThickness: 22 },
-                        { label: 'Sisa efektif', data: [], backgroundColor: WARNA.sisa, maxBarThickness: 22 },
+                        { label: 'Realisasi', data: [], backgroundColor: WARNA.realisasi, maxBarThickness: 16 },
+                        { label: 'Outstanding', data: [], backgroundColor: WARNA.outstanding, maxBarThickness: 16 },
+                        { label: 'Sisa efektif', data: [], backgroundColor: WARNA.sisa, maxBarThickness: 16 },
                     ]
                 },
                 options: {
                     indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', axis: 'y', intersect: false },
+                    onClick: (e, els) => { if (els.length) fokus(baris[els[0].index].kode, 2); },
+                    onHover: pointer,
                     plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font } }, tooltip: {
+                        legend,
+                        tooltip: {
                             callbacks: {
                                 title: c => {
                                     const r = baris[c[0].dataIndex];

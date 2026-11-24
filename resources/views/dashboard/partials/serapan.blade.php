@@ -1,4 +1,5 @@
-{{-- Serapan anggaran per unit kerja (dipakai semua role, termasuk Eselon II) --}}
+{{-- Serapan anggaran per unit kerja (dipakai semua role, termasuk Eselon II).
+     Menerima event 'fokus-serapan' ({kode, depth}) dari chart untuk membuka & menyorot baris. --}}
 @php
     $rp ??= fn($n) => number_format($n, 0, ',', '.');
     $r = 52;
@@ -16,6 +17,8 @@
     $barisCari = $pohon->map(fn ($t) => [
         'id' => $t['id'],
         'anc' => $t['anc'],
+        'kode' => $t['kode'],
+        'depth' => $t['depth'],
         'teks' => mb_strtolower($t['kode'] . ' ' . $t['uraian'] . ' ' . $t['unit']),
     ])->values();
     $barisInduk = $pohon->where('anak', true)->map(fn ($t) => ['id' => $t['id'], 'depth' => $t['depth']])->values();
@@ -96,8 +99,10 @@
 
         {{-- Tabel bertingkat --}}
         @if ($pohon->count() > 0)
-            <div class="mt-6 rounded-2xl border border-gray-200 overflow-hidden"
+            <div id="tabel-serapan" class="mt-6 rounded-2xl border border-gray-200 overflow-hidden"
+                @fokus-serapan.window="fokus($event.detail)"
                 x-data="{
+                    sorot: null,
                     buka: @js($bukaAwal),
                     semua: @js($semuaInduk),
                     induk: @js($barisInduk),
@@ -125,7 +130,16 @@
                         this.buka = this.level >= 99 ? [...this.semua] : this.induk.filter(r => this.level > r.depth).map(r => r.id);
                     },
                     bukaSemua() { this.level = 99; this.buka = [...this.semua]; },
-                    tutupSemua() { this.buka = []; }
+                    tutupSemua() { this.buka = []; },
+                    fokus(d) {
+                        const r = this.rows.find(x => x.kode === d.kode && x.depth === d.depth);
+                        if (!r) return;
+                        this.q = ''; this.cocok = {}; this.level = 99;
+                        this.buka = [...new Set([...this.buka, ...r.anc, r.id])];
+                        this.sorot = r.id;
+                        this.$nextTick(() => document.getElementById('baris-' + r.id)
+                            ?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                    }
                 }"
                 x-init="$watch('q', () => hitung())">
 
@@ -183,7 +197,8 @@
                         </thead>
                         <tbody>
                             @foreach ($serapan['tree'] as $t)
-                                <tr x-show="tampil({{ $t['id'] }}, @js($t['anc']), {{ $t['depth'] }})" x-cloak
+                                <tr id="baris-{{ $t['id'] }}"
+:class="sorot === {{ $t['id'] }} ? '!bg-amber-50 shadow-[inset_3px_0_0_#f59e0b]' : ''"                                    x-show="tampil({{ $t['id'] }}, @js($t['anc']), {{ $t['depth'] }})" x-cloak
                                     @if ($t['anak']) @click="toggle({{ $t['id'] }})" @endif
                                     class="{{ $t['anak'] ? 'cursor-pointer' : '' }} {{ $t['depth'] < 2 ? 'bg-gray-50 font-semibold text-gray-900' : 'bg-white text-gray-700' }} hover:bg-blue-50/50 transition-colors">
                                     <td class="px-2 py-2 whitespace-nowrap border-b border-r border-gray-200">
