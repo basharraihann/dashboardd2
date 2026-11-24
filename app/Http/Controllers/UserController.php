@@ -33,7 +33,7 @@ class UserController extends Controller
      */
     private function unitRequiredRoles(): string
     {
-        return implode(',', [User::ROLE_USER, User::ROLE_TU_UNIT]);
+        return implode(',', [User::ROLE_USER, User::ROLE_TU_UNIT, User::ROLE_ESELON2]);
     }
 
     /**
@@ -42,7 +42,7 @@ class UserController extends Controller
     private function messages(): array
     {
         return [
-            'unit_id.required_if' => 'Unit wajib dipilih untuk role Staf dan TU Unit.',
+            'unit_id.required_if' => 'Unit wajib dipilih untuk role Staf, TU Unit, dan Eselon II.',
             'role.in' => 'Role yang dipilih tidak valid.',
         ];
     }

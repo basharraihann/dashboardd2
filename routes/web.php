@@ -30,7 +30,10 @@ Route::middleware(['auth', 'verified'])
     ->controller(DashboardController::class)
     ->group(function () {
         Route::get('/dashboard', 'index')->name('dashboard');
-        Route::get('/dashboard/kalender', 'kalender')->name('dashboard.kalender');
+        // Kalender agenda SPJ: hanya role yang melihat blok kalender di dashboard
+        Route::get('/dashboard/kalender', 'kalender')
+            ->middleware('role:user,admin,super_admin')
+            ->name('dashboard.kalender');
     });
 
 Route::middleware('auth')->group(function () {

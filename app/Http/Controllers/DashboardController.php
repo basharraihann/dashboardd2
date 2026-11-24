@@ -5,16 +5,107 @@ namespace App\Http\Controllers;
 use App\Models\Agenda;
 use App\Models\AnggaranItem;
 use App\Models\AnggaranUpload;
+use App\Models\MakOption;
 use App\Models\MemoEntry;
+use App\Models\Pegawai;
+use App\Models\User;
 use App\Services\AnggaranUnitResolver;
 use App\Services\MakOutstandingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
+    /**
+     * Satu route, isi dashboard menyesuaikan role.
+     * Controller hanya mengirim data yang dipakai blok (partial) milik role tersebut,
+     * jadi query berat milik role lain tidak ikut jalan.
+     */
     public function index(Request $request)
+    {
+        $user = auth()->user();
+
+        [$serapan, $opsiUnit] = $this->serapanUnit($request->query('unit'));
+        $uploadAktif = AnggaranUpload::where('is_active', true)->latest('id')->first();
+        $data = compact('serapan', 'opsiUnit', 'uploadAktif');
+
+        if ($user->isAdmin()) {
+            $jenis = 'admin';
+            $sapaan = 'Pantau kondisi sistem, data anggaran, dan aktivitas seluruh unit.';
+            $blok = ['ringkasan-admin', 'stat-spj', 'serapan', 'tren-kalender'];
+            $aksi = [
+                ['label' => 'Agenda Baru', 'route' => 'agendas.create', 'primary' => true],
+                ['label' => 'Buat Nomor Memo', 'route' => 'memo.create'],
+                ['label' => 'Monitoring Memo', 'route' => 'monitoring.index'],
+                ['label' => 'Upload Realisasi', 'route' => 'anggaran.upload'],
+                ['label' => 'Pemetaan Unit', 'route' => 'anggaran.pemetaan'],
+                ['label' => 'User Manajemen', 'route' => 'users.index'],
+            ];
+            $data += $this->dataSpj($request) + $this->dataAdmin();
+        } elseif ($user->isEselon2()) {
+            $jenis = 'eselon2';
+            $sapaan = 'Ringkasan serapan anggaran unit Anda.';
+            $blok = ['eselon2-chart', 'serapan'];
+            $aksi = [
+                ['label' => 'Realisasi Anggaran', 'route' => 'anggaran.index', 'primary' => true],
+            ];
+            $data += $this->dataEselon2($serapan);
+        } elseif ($user->isTuSekretariat()) {
+            $jenis = 'sekretariat';
+            $sapaan = 'Pantau serapan anggaran dan proses memo seluruh unit.';
+            $blok = ['serapan'];
+            $aksi = [
+                ['label' => 'Monitoring Memo', 'route' => 'monitoring.index', 'primary' => true],
+                ['label' => 'Realisasi Anggaran', 'route' => 'anggaran.index'],
+                ['label' => 'Pegawai', 'route' => 'pegawais.index'],
+                ['label' => 'Nomor MAK', 'route' => 'mak-options.index'],
+                ['label' => 'Unduh Massal', 'route' => 'unduh.index'],
+            ];
+        } elseif ($user->isTu()) {
+            $jenis = 'tu_unit';
+            $sapaan = 'Kelola data pegawai dan Nomor MAK, serta pantau anggaran unit Anda.';
+            $blok = ['ringkasan-tu', 'serapan'];
+            $aksi = [
+                ['label' => 'Pegawai', 'route' => 'pegawais.index', 'primary' => true],
+                ['label' => 'Nomor MAK', 'route' => 'mak-options.index'],
+                ['label' => 'Realisasi Anggaran', 'route' => 'anggaran.index'],
+                ['label' => 'Monitoring Memo', 'route' => 'monitoring.index'],
+                ['label' => 'Unduh Massal', 'route' => 'unduh.index'],
+            ];
+            $data += [
+                'jumlahPegawai' => Pegawai::count(),
+                'jumlahMak' => MakOption::count(),
+            ];
+        } else {
+            $jenis = 'staf';
+            $sapaan = 'Selamat datang kembali. Berikut ringkasan aktivitas perjalanan dinas unit Anda.';
+            $blok = ['stat-spj', 'serapan', 'tren-kalender'];
+            $aksi = [
+                ['label' => 'Agenda Baru', 'route' => 'agendas.create', 'primary' => true],
+                ['label' => 'Buat Nomor Memo', 'route' => 'memo.create'],
+                ['label' => 'Unduh Massal', 'route' => 'unduh.index'],
+                ['label' => 'Monitoring Memo', 'route' => 'monitoring.index'],
+            ];
+            $data += $this->dataSpj($request);
+        }
+
+        return view('dashboard.index', $data + compact('jenis', 'sapaan', 'blok', 'aksi'));
+    }
+
+    /**
+     * Endpoint JSON untuk pindah bulan kalender tanpa reload halaman.
+     * GET /dashboard/kalender?bulan=2026-10
+     */
+    public function kalender(Request $request)
+    {
+        return response()->json($this->dataKalender($request));
+    }
+
+    /**
+     * Data blok SPJ: statistik agenda, dana per tipe, chart tahunan, dan kalender.
+     * Dipakai role user dan admin.
+     */
+    private function dataSpj(Request $request): array
     {
         $now = now();
 
@@ -38,42 +129,143 @@ class DashboardController extends Controller
         // Data awal kalender
         $kalender = $this->dataKalender($request);
 
-        // Serapan anggaran per unit induk (D1, D2, dst.)
-        [$serapan, $opsiUnit] = $this->serapanUnit($request->query('unit'));
-
-        return view('dashboard', compact(
+        return compact(
             'agendaBulanIni',
             'danaBulanIni',
             'chartLabels',
             'chartData',
             'chartKosong',
-            'kalender',
-            'serapan',
-            'opsiUnit'
-        ));
+            'kalender'
+        );
     }
 
     /**
-     * Endpoint JSON untuk pindah bulan kalender tanpa reload halaman.
-     * GET /dashboard/kalender?bulan=2026-10
+     * Data blok ringkasan admin: jumlah user per role, upload realisasi aktif,
+     * dan jumlah RO yang belum dipetakan ke unit.
      */
-    public function kalender(Request $request)
+    private function dataAdmin(): array
     {
-        return response()->json($this->dataKalender($request));
+        $userPerRole = User::selectRaw('role, COUNT(*) as total')
+            ->groupBy('role')
+            ->pluck('total', 'role');
+
+        $uploadAktif = AnggaranUpload::where('is_active', true)->latest('id')->first();
+
+        $roBelumDipetakan = 0;
+        if ($uploadAktif) {
+            $resolver = app(AnggaranUnitResolver::class);
+            $ro = [];
+            foreach (AnggaranItem::where('anggaran_upload_id', $uploadAktif->id)->get() as $i) {
+                $m = $resolver->resolve($i);
+                if (empty($m['unit'])) {
+                    $ro[trim((string) $i->ro_kode)] = true;
+                }
+            }
+            $roBelumDipetakan = count($ro);
+        }
+
+        return compact('userPerRole', 'uploadAktif', 'roBelumDipetakan');
+    }
+
+    /**
+     * Item anggaran upload aktif, dikelompokkan induk => sub unit => item.
+     */
+    private function itemPerInduk(AnggaranUpload $upload): array
+    {
+        $resolver = app(AnggaranUnitResolver::class);
+
+        $perInduk = [];
+        foreach (AnggaranItem::where('anggaran_upload_id', $upload->id)->orderBy('id')->get() as $i) {
+            $m = $resolver->resolve($i);
+            $sub = $m['unit'] ?: 'Belum dipetakan';
+            $induk = $m['induk'] ?: $sub;
+            $perInduk[$induk][$sub][] = $i;
+        }
+
+        return $perInduk;
+    }
+
+    /**
+     * Target serapan (persen) sampai bulan berjalan. Default linear: bulan ke-n dari 12.
+     * Ganti isi method ini kalau ada target resmi (misalnya per triwulan).
+     */
+    private function targetSerapan(): float
+    {
+        return round(now()->month / 12 * 100, 2);
+    }
+
+    /**
+     * Data dashboard Eselon II: KPI dan daftar RO, hanya untuk unit akun tersebut.
+     * Angka diambil dari $serapan (sudah dibatasi sesuai unit akun oleh serapanUnit()),
+     * jadi tidak perlu memuat data anggaran sekali lagi.
+     */
+    private function dataEselon2(array $serapan): array
+    {
+        $target = $this->targetSerapan();
+
+        $hasil = [
+            'target' => $target,
+            'kpi' => null,
+            'ro' => [],
+        ];
+
+        if (!$serapan['ada']) {
+            return $hasil;
+        }
+
+        $hasil['kpi'] = [
+            'pagu' => $serapan['pagu'],
+            'realisasi' => $serapan['realisasi'],
+            'persen' => $serapan['persen'],
+            'sisa' => $serapan['sisa'],
+            'outstanding' => $serapan['outstanding'],
+            'sisa_efektif' => $serapan['sisa_efektif'],
+            'status' => $this->statusSerapan((float) $serapan['persen'], $target),
+        ];
+
+        // Semua RO (kedalaman 2 di tabel bertingkat) yang punya pagu
+        $hasil['ro'] = collect($serapan['tree'])
+            ->where('depth', 2)
+            ->filter(fn($t) => $t['pagu'] > 0)
+            ->map(fn($t) => [
+                'kode' => $t['kode'],
+                'uraian' => $t['uraian'],
+                'unit' => $t['unit'],
+                'pagu' => $t['pagu'],
+                'realisasi' => $t['sd'],
+                'outstanding' => $t['out'] ?? 0,
+                'sisa' => $t['sisa'],
+                'sisa_efektif' => $t['efektif'] ?? $t['sisa'],
+            ])
+            ->values()
+            ->all();
+
+        return $hasil;
+    }
+
+    /** hijau: sesuai/di atas target, kuning: sampai 20% di bawah target, merah: lebih rendah. */
+    private function statusSerapan(float $persen, float $target): string
+    {
+        if ($persen >= $target) {
+            return 'hijau';
+        }
+
+        return $persen >= $target * 0.8 ? 'kuning' : 'merah';
     }
 
     /**
      * Serapan anggaran satu unit induk (D1, D2, dst.) beserta tabel bertingkat.
-     * - Keuangan/admin: boleh memilih induk, tabel menampilkan semua unit kerja di dalamnya.
-     * - Akun Asdep (unit kerja): hanya melihat Asdep-nya sendiri.
-     * - Akun tingkat Deputi/Biro: melihat seluruh induknya.
+     * - TU Sekretariat, Admin, Super Admin: boleh memilih induk, tabel menampilkan semua unit kerja di dalamnya.
+     * - Akun Asdep (unit kerja): hanya melihat Asdep-nya sendiri. Parameter ?unit= diabaikan untuk mereka.
+     * - Akun tingkat Deputi/Biro (termasuk Eselon II): melihat seluruh induknya, tanpa bisa memilih.
      * Sisa = Pagu - Realisasi; Sisa Efektif = Sisa - Outstanding.
      *
      * @return array{0: array, 1: array} [$serapan, $opsiUnit]
      */
     private function serapanUnit(?string $unitDipilih): array
     {
-        $bisaPilih = Gate::allows('kelola-anggaran') || (bool) auth()->user()?->isAdmin();
+        $u = auth()->user();
+        $bisaPilih = (bool) ($u && $u->canApproveMemo());
 
         $kosong = fn($unit = '-', $ada = false) => [
             'unit' => $unit,
@@ -93,16 +285,8 @@ class DashboardController extends Controller
             return [$kosong(), []];
         }
 
-        $resolver = app(AnggaranUnitResolver::class);
-
         // induk => sub unit => item
-        $perInduk = [];
-        foreach (AnggaranItem::where('anggaran_upload_id', $upload->id)->orderBy('id')->get() as $i) {
-            $m = $resolver->resolve($i);
-            $sub = $m['unit'] ?: 'Belum dipetakan';
-            $induk = $m['induk'] ?: $sub;
-            $perInduk[$induk][$sub][] = $i;
-        }
+        $perInduk = $this->itemPerInduk($upload);
 
         if ($perInduk === []) {
             return [$kosong(), []];
@@ -162,7 +346,7 @@ class DashboardController extends Controller
             $opsi = [$unit];
         }
 
-        // Unit awal Keuangan/admin: induk yang cocok dengan unit akun, kalau tidak ada yang pertama
+        // Unit awal yang bisa memilih: induk yang cocok dengan unit akun, kalau tidak ada yang pertama
         if (!$unit) {
             foreach ($semuaInduk as $o) {
                 if ($kodeNorm !== '' && preg_match('/\b' . preg_quote($norm($o), '/') . '\b/', $kodeNorm)) {
