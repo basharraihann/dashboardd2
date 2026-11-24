@@ -429,19 +429,19 @@
 
                 {{-- Tabel muat penuh di lebar kartu: kolom berukuran tetap (persen), tanpa scroll samping --}}
                 <div class="ang-scroll">
-                    <table class="w-full table-fixed text-[11px] leading-tight">
+                    <table class="w-full table-fixed text-[12px] leading-tight">
                         <colgroup>
-                            <col style="width:11%">
-                            <col style="width:14%">
-                            <col style="width:8%">
-                            <col style="width:10%">
-                            <col style="width:9%">
-                            <col style="width:8%">
-                            <col style="width:9%">
-                            <col style="width:5%">
-                            <col style="width:9%">
-                            <col style="width:7%">
-                            <col style="width:10%">
+                            <col style="width:9.5%"> {{-- Kode --}}
+                            <col style="width:20%"> {{-- Uraian --}}
+                            <col style="width:6.5%"> {{-- Unit --}}
+                            <col style="width:9.2%"> {{-- Pagu Revisi --}}
+                            <col style="width:9%"> {{-- Real. Lalu --}}
+                            <col style="width:7.5%"> {{-- Real. Ini --}}
+                            <col style="width:9%"> {{-- Real. s.d. --}}
+                            <col style="width:6%"> {{-- % --}}
+                            <col style="width:8.1%"> {{-- Sisa --}}
+                            <col style="width:7.7%"> {{-- Outstanding --}}
+                            <col style="width:8.5%"> {{-- Sisa Efektif --}}
                         </colgroup>
                         <thead style="background:#2563eb" class="text-[11px] text-white sticky top-0 z-10">
                             <tr>

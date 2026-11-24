@@ -8,6 +8,7 @@ use App\Http\Controllers\BerkasFisikController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MakOptionController;
 use App\Http\Controllers\MemoController;
+use App\Http\Controllers\MemoNomorSettingController;
 use App\Http\Controllers\MemoStatusController;
 use App\Http\Controllers\MemoTahapController;
 use App\Http\Controllers\MonitoringMemoController;
@@ -155,6 +156,22 @@ Route::middleware('auth')->group(function () {
                 Route::put('{memo}', 'update')->name('update');
                 Route::delete('{memo}', 'destroy')->name('destroy');
             });
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pengaturan nomor memo (format nomor & nomor awal): admin saja
+    | Path sengaja 'pengaturan/nomor-memo' supaya tidak bentrok dengan
+    | 'nomor-memo/{memo}'.
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,super_admin')
+        ->controller(MemoNomorSettingController::class)
+        ->prefix('pengaturan/nomor-memo')
+        ->name('memo.nomor-setting')
+        ->group(function () {
+            Route::get('/', 'edit');
+            Route::put('/', 'update')->name('.update');
         });
 
     /*

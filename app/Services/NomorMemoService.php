@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\Agenda;
 use App\Models\MemoEntry;
+use App\Models\MemoNomorSetting;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Nomor memo itu satu urutan global — gak dibedain PNS/Non-PNS, gak ada
@@ -15,16 +18,47 @@ use Illuminate\Support\Collection;
  *      format "323/LS.D1.PPK/KU.00/07/2026" — angka di depan yang dipakai)
  *   2. memo_entries.nomor_urut                       (nomor yang dibuat lewat
  *      tombol "Ambil Nomor Memo" atau form mandiri)
+ *
+ * Format nomor (template) dan nomor awal bisa diatur admin lewat tabel
+ * memo_nomor_settings. Kalau belum pernah diatur, perilaku lama dipakai:
+ * nomor awal 385 dan format meniru nomor terakhir.
  */
 class NomorMemoService
 {
-    /** Nomor memo pertama yang boleh keluar. */
-    private const NOMOR_AWAL = 385;
+    /** Nomor awal bawaan kalau admin belum mengatur. */
+    private const NOMOR_AWAL_DEFAULT = 385;
+
+    /** Token yang dikenali template format nomor. */
+    public const TOKEN = ['{no}', '{tahun}', '{tahun2}', '{bulan}', '{romawi}'];
+
+    /** Nomor memo pertama yang boleh keluar (diatur admin). */
+    public static function nomorAwal(): int
+    {
+        return (int) (MemoNomorSetting::current()?->nomor_awal ?: self::NOMOR_AWAL_DEFAULT);
+    }
+
+    /**
+     * Render template jadi teks nomor. Contoh:
+     * "{no}.KU.00.00/{tahun}" + 386 -> "386.KU.00.00/2026"
+     */
+    public static function render(string $template, int $urut, ?Carbon $tgl = null): string
+    {
+        $tgl ??= now();
+        $romawi = [1 => 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+        return strtr($template, [
+            '{no}' => (string) $urut,
+            '{tahun}' => $tgl->format('Y'),
+            '{tahun2}' => $tgl->format('y'),
+            '{bulan}' => $tgl->format('m'),
+            '{romawi}' => $romawi[$tgl->month],
+        ]);
+    }
 
     /**
      * Nomor urut terbesar yang pernah dipakai dari kedua sumber. Kalau
-     * belum ada nomor memo sama sekali, hasilnya NOMOR_AWAL - 1 (jadi nomor
-     * berikutnya mulai dari NOMOR_AWAL).
+     * belum ada nomor memo sama sekali, hasilnya nomorAwal() - 1 (jadi nomor
+     * berikutnya mulai dari nomorAwal()).
      */
     public static function nomorTerbesar(): int
     {
@@ -36,7 +70,7 @@ class NomorMemoService
         // lintas unit: nomor itu satu urutan untuk seluruh instansi
         $dariEntries = MemoEntry::withoutGlobalScope('unit')->max('nomor_urut');
 
-        return max((int) $dariAgenda, (int) $dariEntries, self::NOMOR_AWAL - 1);
+        return max((int) $dariAgenda, (int) $dariEntries, self::nomorAwal() - 1);
     }
 
     public static function nomorBerikutnya(): int
@@ -46,11 +80,11 @@ class NomorMemoService
 
     /**
      * Data lengkap buat tombol "Ambil Nomor Memo": nomor urut berikutnya,
-     * "ekor" format (bagian setelah angka) niru nomor terakhir yang pernah
-     * dipakai dengan bulan/tahun disesuaikan ke sekarang, dan nomor jadi.
+     * "ekor" format (bagian setelah angka), dan nomor jadi.
      *
-     * Kalau belum pernah ada nomor memo sama sekali, ekor pakai template
-     * tebakan default — silakan disesuaikan manual di form kalau beda.
+     * Ekor diambil dari template admin kalau ada; kalau belum diatur,
+     * niru nomor terakhir yang pernah dipakai dengan bulan/tahun disesuaikan
+     * ke sekarang.
      */
     public static function dataBerikutnya(): array
     {
@@ -121,9 +155,12 @@ class NomorMemoService
     }
 
     /**
-     * Susun "ekor" (bagian format setelah angka urut) buat nomor memo
-     * berikutnya, ditiru dari nomor terakhir yang pernah dipakai, dengan
-     * bulan/tahun di dalamnya disesuaikan ke bulan/tahun sekarang.
+     * Susun "ekor" (bagian format setelah angka urut) buat nomor memo berikutnya.
+     *
+     * 1. Kalau admin sudah menyimpan template, pakai template itu
+     *    (semua setelah {no}, token bulan/tahun/romawi diisi sekarang).
+     * 2. Kalau belum, tiru nomor terakhir yang pernah dipakai, dengan
+     *    bulan/tahun disesuaikan ke sekarang.
      *
      * Deteksi tahun/bulan pakai regex terhadap 4-digit & 2-digit di ujung
      * string, BUKAN explode('/') + hitung index segmen — karena format nomor
@@ -133,6 +170,12 @@ class NomorMemoService
      */
     private static function templateEkor(): string
     {
+        $setting = MemoNomorSetting::current();
+        if ($setting && $setting->template) {
+            // template selalu diawali {no}; "ekor" = semua setelah {no}
+            return self::render(Str::after($setting->template, '{no}'), 0);
+        }
+
         $bulan = now()->format('m');
         $tahun = now()->format('Y');
 
