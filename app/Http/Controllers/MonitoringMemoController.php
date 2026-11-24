@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\Agenda;
 use App\Models\MemoEntry;
 use App\Services\MemoTahapService;
@@ -30,7 +31,8 @@ class MonitoringMemoController extends Controller
     {
         $user = auth()->user();
 
-        return (bool) ($user?->isAdmin() || $user?->role === 'tu');
+        // TU Sekretariat melihat semua unit. 'tu' = role lama, dipertahankan sampai user lama dimigrasi.
+        return (bool) ($user?->isAdmin() || $user?->isTuSekretariat() || $user?->role === User::ROLE_TU);
     }
 
     public function index()

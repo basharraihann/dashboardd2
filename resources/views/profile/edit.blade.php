@@ -40,6 +40,9 @@
         .pf-badge--user  { background: #d1fae5; color: #047857; }
         .pf-badge--tu    { background: #e0f2fe; color: #0369a1; }
         .pf-badge--admin { background: #f3e8ff; color: #7e22ce; }
+        .pf-badge--super { background: #ffe4e6; color: #be123c; }
+        .pf-badge--tusekr { background: #cffafe; color: #0e7490; }
+        .pf-badge--eselon { background: #fef3c7; color: #b45309; }
 
         /* Form */
         .pf-form   { display: grid; gap: 1.25rem; }
@@ -82,8 +85,11 @@
                 @php
                     $inisial = mb_strtoupper(mb_substr($user->name ?? 'U', 0, 1));
                     $badge = match ($user->role) {
+                        'super_admin' => 'pf-badge--super',
                         'admin' => 'pf-badge--admin',
-                        'tu' => 'pf-badge--tu',
+                        'tu_sekretariat' => 'pf-badge--tusekr',
+                        'tu_unit', 'tu' => 'pf-badge--tu',
+                        'eselon2' => 'pf-badge--eselon',
                         default => 'pf-badge--user',
                     };
                 @endphp
@@ -104,7 +110,7 @@
                     @endif
                     <div>
                         <dt>Hak akses</dt>
-                        <dd><span class="pf-badge {{ $badge }}">{{ $user->role_label }}</span></dd>
+                        <dd><span class="pf-badge {{ $badge }}">{{ $user->roleLabel() }}</span></dd>
                     </div>
                     <div>
                         <dt>Unit</dt>
