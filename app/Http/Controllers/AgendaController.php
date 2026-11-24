@@ -122,6 +122,9 @@ class AgendaController extends Controller
             'tujuan' => 'required|string',
             'kota_tujuan' => 'required|string',
             'alat_angkut' => 'nullable|in:darat,udara,laut,darat_udara',
+            // Boleh pilihan dari daftar MemoEntry::TIPE_PEMBAYARAN atau ketikan manual
+            // (maks. 20 karakter, sama dengan batas kolom di DB).
+            'tipe_pembayaran' => 'required|string|max:20',
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'ppk_id' => 'nullable|exists:pegawai,id',
@@ -229,6 +232,9 @@ class AgendaController extends Controller
             'tujuan' => 'required|string',
             'kota_tujuan' => 'nullable|string',
             'alat_angkut' => 'nullable|in:darat,udara,laut,darat_udara',
+            // Boleh pilihan dari daftar MemoEntry::TIPE_PEMBAYARAN atau ketikan manual
+            // (maks. 20 karakter, sama dengan batas kolom di DB).
+            'tipe_pembayaran' => 'required|string|max:20',
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'ppk_id' => 'nullable|exists:pegawai,id',

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agenda;
+use App\Models\MemoEntry;
 use App\Models\Pegawai;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -86,6 +87,12 @@ class AgendaPdfController extends Controller
             ->values()
             ->all();
 
+        // Tipe pembayaran agenda ini. Nilai yang ada di daftar MemoEntry::TIPE_PEMBAYARAN
+        // dipetakan ke label lengkapnya; nilai ketikan manual dipakai apa adanya
+        // (sama seperti preview "Hal" di form memo).
+        $tipePembayaran = $agenda->tipe_pembayaran ?: 'ls';
+        $tipePembayaranLabel = MemoEntry::TIPE_PEMBAYARAN[$tipePembayaran] ?? $tipePembayaran;
+
         $pdf = Pdf::loadView('pdf.memorandum', [
             'agenda' => $agenda,
             'statusLabel' => $statusLabel,
@@ -95,6 +102,11 @@ class AgendaPdfController extends Controller
             'rincianBiaya' => $rincianBiaya,
             'totalBiaya' => $status === 'pns' ? $agenda->biaya_asn : $agenda->biaya_non_asn,
             'lampiran' => $this->buildLampiran($agenda, $statusLabel), // halaman 3
+            'tipePembayaran' => $tipePembayaran,           // kode, mis. "ls"
+            'tipePembayaranLabel' => $tipePembayaranLabel, // label lengkap utk dicetak
+            // Baris "Hal" di halaman 1 memorandum (dibaca view sebagai $halMemo).
+            // Contoh hasil: "Permintaan Pembayaran Langsung (LS) Perjalanan Dinas"
+            'halMemo' => trim($tipePembayaranLabel . ' Perjalanan Dinas'),
         ])->setPaper('a4', 'portrait');
 
         return $pdf->stream("Memorandum-{$statusLabel}-{$agenda->id}.pdf");

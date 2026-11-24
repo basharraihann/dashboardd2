@@ -92,6 +92,10 @@
     $vBendahara = old('bendahara_id', $agenda?->bendahara_id);
     $vPj = old('penanggung_jawab_id', $agenda?->penanggung_jawab_id);
 
+    // Tipe pembayaran: old() menang, lalu data agenda (edit), default 'ls' (create) — sama seperti form memo.
+    // Nilai ketikan manual (tidak ada di daftar TIPE_PEMBAYARAN) tetap ditampilkan sebagai option custom.
+    $currentTipe = old('tipe_pembayaran', $agenda?->tipe_pembayaran ?: 'ls');
+
     // Badge status agenda (cuma tampil di edit)
     $statusStyle = match (strtolower($agenda?->status ?? '')) {
         'draft' => 'bg-gray-100 text-gray-500',
@@ -114,6 +118,7 @@
             'tujuan' => 'Tujuan (Provinsi)',
             'kota_tujuan' => 'Kab/Kota',
             'alat_angkut' => 'Alat Angkut',
+            'tipe_pembayaran' => 'Tipe Pembayaran',
             'tanggal_mulai' => 'Tanggal Mulai',
             'tanggal_selesai' => 'Tanggal Selesai',
             'ppk_id' => 'Pejabat Pembuat Komitmen (PPK)',
@@ -400,13 +405,13 @@
                         @endunless
                     </label>
                     <select name="kota_tujuan" id="kota-tujuan-select"
-    class="js-searchable ...class yang sudah ada..."
-    data-placeholder="Cari kab/kota..."
-    data-lokasi-provinsi="#tujuan-select"
-    data-lokasi-map='@json($kabKotaMap)'
-    data-lokasi-current="{{ old('kota_tujuan', $agenda?->kota_tujuan) }}"
-    data-lokasi-placeholder="Pilih kab/kota">
-</select>
+                        class="js-searchable w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition"
+                        data-placeholder="Cari kab/kota..."
+                        data-lokasi-provinsi="#tujuan-select"
+                        data-lokasi-map='@json($kabKotaMap)'
+                        data-lokasi-current="{{ old('kota_tujuan', $agenda?->kota_tujuan) }}"
+                        data-lokasi-placeholder="Pilih kab/kota">
+                    </select>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 mb-1.5">Tanggal Mulai <span
@@ -425,23 +430,54 @@
                 </div>
             </div>
 
-            <div class="sm:w-1/2 sm:pr-2">
-                <label class="block text-xs font-semibold text-gray-500 mb-1.5">Alat Angkut <span
-                        class="text-red-400">*</span></label>
-                <div class="relative">
-                    <select name="alat_angkut" required
-                        class="w-full appearance-none bg-none border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition bg-white">
-                        <option value="" disabled {{ $vAlatAngkut ? '' : 'selected' }}>— Pilih —</option>
-                        <option value="darat" @selected($vAlatAngkut === 'darat')>Angkutan Darat</option>
-                        <option value="udara" @selected($vAlatAngkut === 'udara')>Angkutan Udara</option>
-                        <option value="laut" @selected($vAlatAngkut === 'laut')>Angkutan Laut</option>
-                        <option value="darat_udara" @selected($vAlatAngkut === 'darat_udara')>Angkutan Darat dan Udara</option>
-                    </select>
-                    <svg xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
+            {{-- Alat Angkut + Tipe Pembayaran (sebaris di layar sm ke atas) --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5">Alat Angkut <span
+                            class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <select name="alat_angkut" required
+                            class="w-full appearance-none bg-none border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition bg-white">
+                            <option value="" disabled {{ $vAlatAngkut ? '' : 'selected' }}>— Pilih —</option>
+                            <option value="darat" @selected($vAlatAngkut === 'darat')>Angkutan Darat</option>
+                            <option value="udara" @selected($vAlatAngkut === 'udara')>Angkutan Udara</option>
+                            <option value="laut" @selected($vAlatAngkut === 'laut')>Angkutan Laut</option>
+                            <option value="darat_udara" @selected($vAlatAngkut === 'darat_udara')>Angkutan Darat dan Udara</option>
+                        </select>
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1.5">Tipe Pembayaran <span
+                            class="text-red-400">*</span></label>
+                    <div class="relative">
+                        {{-- Dipilih dari daftar ATAU diketik manual (lihat data-allow-custom di searchable.js).
+                        Nilai ketikan dikirim lewat option data-custom; maks. 20 karakter (kolom DB). --}}
+                        <select name="tipe_pembayaran" id="tipe-pembayaran" required data-allow-custom="1"
+                            data-maxlength="20" data-placeholder="Pilih atau ketik sendiri..."
+                            class="js-searchable w-full appearance-none bg-none border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition bg-white">
+                            @foreach (\App\Models\MemoEntry::TIPE_PEMBAYARAN as $value => $label)
+                                <option value="{{ $value }}" @selected($currentTipe === $value)>
+                                    {{ \Illuminate\Support\Str::of($label)->afterLast('(')->before(')') }} —
+                                    {{ \Illuminate\Support\Str::of($label)->after('Permintaan ')->before(' (') }}
+                                </option>
+                            @endforeach
+                            @if ($currentTipe && !array_key_exists($currentTipe, \App\Models\MemoEntry::TIPE_PEMBAYARAN))
+                                <option value="{{ $currentTipe }}" data-custom selected>{{ $currentTipe }}</option>
+                            @endif
+                        </select>
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                    <p class="text-xs text-gray-300 mt-1">Dipakai nanti buat memo agenda ini.</p>
                 </div>
             </div>
 
