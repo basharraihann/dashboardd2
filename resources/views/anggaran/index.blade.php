@@ -700,21 +700,120 @@
             const clip = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;
             function fillSel() {
                 CH.forEach((k, i) => {
-                    const seen = new Set();
-                    let html = '<option value="">Semua</option>';
+                    const seen = new Map();
                     items.forEach((it) => {
-                        const kode = it[k + '_kode'];
+                        const kode = String(it[k + '_kode'] ?? '');
                         if (!inUnit(it) || !match(it, i) || seen.has(kode)) return;
-                        seen.add(kode);
-                        const full = padKode(k, String(kode ?? '')) + ' – ' + (it[k + '_uraian'] || '');
-                        html += `<option value="${esc(kode)}" title="${esc(full)}">${esc(clip(full, 80))}</option>`;
+                        seen.set(kode, { kode, tampil: padKode(k, kode), ur: it[k + '_uraian'] || '' });
                     });
+                    // Urut per angka (numeric: true supaya 9 < 10 < 100)
+                    const list = [...seen.values()].sort((a, b) => a.tampil.localeCompare(b.tampil, 'id', { numeric: true }));
                     if (F[k] && !seen.has(F[k])) F[k] = '';   // pilihan lama tidak ada di unit ini -> kosongkan
+
                     const sel = $('f-' + k);
-                    sel.innerHTML = html;
+                    sel.innerHTML = '<option value="">Semua</option>' +
+                        list.map((o) => `<option value="${esc(o.kode)}">${esc(o.tampil + ' – ' + o.ur)}</option>`).join('');
                     sel.value = F[k];
+                    buildCombo(sel, list);
                 });
             }
+
+            function buildCombo(sel, list) {
+                let box = sel._combo;
+                if (!box) {
+                    box = document.createElement('div');
+                    box.className = 'cb relative';
+                    box.innerHTML = `
+            <button type="button" class="cb-btn flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white py-2.5 px-3 text-left text-sm text-slate-700 shadow-sm transition hover:border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" aria-haspopup="listbox" aria-expanded="false">
+                <span class="cb-label min-w-0 truncate"></span>
+                <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/></svg>
+            </button>
+            <div class="cb-panel hidden absolute left-0 z-40 mt-1.5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-slate-900/5" style="width:max(100%,min(34rem,94vw))">
+                <div class="relative border-b border-slate-200 bg-white p-2">
+                    <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+                    <input type="search" class="cb-q w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Cari kode atau uraian..." autocomplete="off">
+                </div>
+                <div style="display:grid;grid-template-columns:5rem minmax(0,1fr);gap:.75rem" class="border-b border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    <span>Kode</span><span>Uraian</span>
+                </div>
+                <ul class="cb-list max-h-64 overflow-y-auto" role="listbox"></ul>
+                <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-3 py-1">
+                    <span class="cb-count text-[11px] text-slate-500"></span>
+                    <button type="button" class="cb-close rounded-md px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-200">Tutup</button>
+                </div>
+            </div>`;
+                    sel.style.display = 'none';
+                    sel.after(box);
+                    sel._combo = box;
+
+                    const btn = box.querySelector('.cb-btn'), panel = box.querySelector('.cb-panel'), q = box.querySelector('.cb-q');
+                    const close = () => { panel.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+                    box._close = close;
+
+                    btn.addEventListener('click', () => {
+                        const willOpen = panel.classList.contains('hidden');
+                        closeAllCombos();
+                        if (!willOpen) return;
+                        panel.classList.remove('hidden');
+                        btn.setAttribute('aria-expanded', 'true');
+                        panel.style.left = '0'; panel.style.right = 'auto';
+                        if (panel.getBoundingClientRect().right > window.innerWidth - 8) { panel.style.left = 'auto'; panel.style.right = '0'; }
+                        q.value = ''; box._render('');
+                        q.focus();
+                        const on = box.querySelector('[aria-selected="true"]');
+                        if (on) on.scrollIntoView({ block: 'nearest' });
+                    });
+                    box.querySelector('.cb-close').addEventListener('click', () => { close(); btn.focus(); });
+                    q.addEventListener('input', () => box._render(q.value));
+                    box.querySelector('.cb-list').addEventListener('click', (e) => {
+                        const b = e.target.closest('[data-val]');
+                        if (!b) return;
+                        close();
+                        sel.value = b.dataset.val;
+                        sel.dispatchEvent(new Event('change'));
+                    });
+                }
+
+                box._render = (text) => {
+                    const t = String(text || '').trim().toLowerCase();
+                    const cur = sel.value;
+                    const check = '<svg class="h-3.5 w-3.5 text-blue-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.8 3.79 6.8-6.79a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>';
+                    const row = (val, kode, ur, semua) => {
+                        const on = val === cur;
+                        return `<li class="border-b border-slate-100 last:border-0"><button type="button" data-val="${esc(val)}" role="option" aria-selected="${on}"
+                style="display:grid;grid-template-columns:5rem minmax(0,1fr) 1rem;gap:.75rem;align-items:center;${on ? 'box-shadow:inset 3px 0 0 #2563eb' : ''}"
+                class="w-full px-3 py-1.5 text-left text-xs leading-snug transition ${on ? 'bg-blue-50' : 'hover:bg-slate-50'}">
+                <span class="tabular-nums font-semibold ${on ? 'text-blue-700' : 'text-slate-900'}">${esc(kode)}</span>
+                <span class="break-words ${semua ? 'text-slate-500' : (on ? 'font-medium text-blue-800' : 'text-slate-700')}">${esc(ur)}</span>
+                <span>${on ? check : ''}</span></button></li>`;
+                    };
+                    const shown = list.filter((o) => !t || o.tampil.toLowerCase().includes(t) || o.ur.toLowerCase().includes(t));
+                    box.querySelector('.cb-list').innerHTML =
+                        (t ? '' : row('', 'Semua', 'Tampilkan semua, tanpa filter', true)) +
+                        (shown.length ? shown.map((o) => row(o.kode, o.tampil, o.ur)).join('')
+                            : '<li class="px-3 py-4 text-center text-xs text-slate-400">Tidak ada yang cocok.</li>');
+                    box.querySelector('.cb-count').textContent = t
+                        ? shown.length + ' dari ' + list.length + ' item'
+                        : list.length + ' item';
+                };
+
+                const cur = list.find((o) => o.kode === sel.value);
+                box.querySelector('.cb-label').innerHTML = cur
+                    ? `<span class="font-semibold text-slate-900 tabular-nums">${esc(cur.tampil)}</span><span class="text-slate-400"> &nbsp;|&nbsp; </span>${esc(cur.ur)}`
+                    : '<span class="text-slate-600">Semua</span>';
+                box._render('');
+            }
+
+            // Tutup semua dropdown
+            function closeAllCombos() {
+                document.querySelectorAll('.cb').forEach((b) => b._close && b._close());
+            }
+            // Klik di luar menutup. composedPath() tetap benar walau elemen yang diklik sudah dicopot dari DOM.
+            document.addEventListener('mousedown', (e) => {
+                const path = e.composedPath ? e.composedPath() : [];
+                document.querySelectorAll('.cb').forEach((b) => { if (!path.includes(b)) b._close && b._close(); });
+            });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllCombos(); });
 
             // Urutan unit: Asdep 1..5, lalu Sesdep, lalu lainnya; "Belum dipetakan" selalu terakhir
             const unitRank = (s) => /^Asdep/i.test(s) ? 0 : /^Sesdep/i.test(s) ? 1 : 2;
