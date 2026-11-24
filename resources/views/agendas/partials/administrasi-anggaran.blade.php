@@ -29,8 +29,10 @@
     // "Payung" = MAK tanpa kode belanja (segmen ke-6).
     // Contoh: 7458.ABR.006.075.EE.524111 -> payung 7458.ABR.006.075.EE
     $makGroups = $makOptions
-        ->sortBy('mak')
+        ->sortBy([['rekomendasi', 'desc'], ['mak', 'asc']])
         ->groupBy(fn($o) => \Illuminate\Support\Str::beforeLast($o->mak, '.'));
+    $adaRekom = $makGroups->contains(fn($g) => (bool) ($g->first()->rekomendasi ?? false));
+    $sectionSaatIni = null;
 
     $currentOpt = $makOptions->firstWhere('mak', $currentMak);
     // Label di kolom pencarian = MAK lengkap + uraian belanja
@@ -107,14 +109,40 @@
                 <div id="mak-panel"
                     class="hidden absolute z-30 left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl max-h-80 sm:max-h-[26rem] overflow-y-auto">
                     @foreach ($makGroups as $payung => $items)
-                        @php $first = $items->first(); @endphp
-                        <div class="mak-group">
+                        @php
+                            $first = $items->first();
+                            $isRekom = (bool) ($first->rekomendasi ?? false);
+                            $section = $isRekom ? 'rekom' : 'lain';
+                            $unitPemilik = array_values($first->unit_pemilik ?? []);
+                        @endphp
+
+                        @if ($adaRekom && $section !== $sectionSaatIni)
+                            @php $sectionSaatIni = $section; @endphp
+                            <div class="mak-section px-4 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider {{ $isRekom ? 'text-emerald-700 bg-emerald-50' : 'text-gray-500 bg-white border-t border-gray-100' }}"
+                                data-section="{{ $section }}">
+                                {{ $isRekom ? '★ Rekomendasi untuk unit Anda' : 'MAK unit lain' }}
+                            </div>
+                        @endif
+
+                        <div class="mak-group" data-section="{{ $section }}">
                             {{-- Header grup --}}
                             <div class="sticky top-0 z-10 px-4 py-2 bg-gray-50/95 backdrop-blur border-y border-gray-100">
                                 <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                                     <span
                                         class="font-mono text-[11px] font-semibold text-indigo-700 bg-white border border-gray-200 rounded px-1.5 py-0.5 break-all">{{ $payung }}</span>
                                     <span class="text-[11px] text-gray-400">{{ $items->count() }} akun belanja</span>
+
+                                    {{-- Chip unit pemilik --}}
+                                    @if (count($unitPemilik))
+                                        <span title="{{ implode(', ', $unitPemilik) }}"
+                                            class="ml-auto flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium {{ $isRekom ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50 text-indigo-700' }}">
+                                            {{ implode(' · ', array_slice($unitPemilik, 0, 2)) }}{{ count($unitPemilik) > 2 ? ' +' . (count($unitPemilik) - 2) : '' }}
+                                        </span>
+                                    @else
+                                        <span
+                                            class="ml-auto flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-400">Unit
+                                            belum dipetakan</span>
+                                    @endif
                                 </div>
                                 <div class="text-xs font-semibold text-gray-700 mt-1 leading-snug">
                                     {{ $first->uraian_giat }}
@@ -132,7 +160,7 @@
                                     {{-- border-l-2 transparan + -ml-px: menimpa garis vertikal grup;
                                     berubah biru kalau item ini yang terpilih. --}}
                                     <button type="button" data-mak="{{ $opt->mak }}" data-efektif="{{ $efektif }}"
-                                        data-search="{{ mb_strtolower($opt->mak . ' ' . $opt->uraian_belanja . ' ' . $opt->uraian_giat . ' ' . $opt->uraian_komponen) }}"
+                                        data-search="{{ mb_strtolower($opt->mak . ' ' . $opt->uraian_belanja . ' ' . $opt->uraian_giat . ' ' . $opt->uraian_komponen . ' ' . implode(' ', $opt->unit_pemilik ?? [])) }}"
                                         class="mak-item w-full text-left flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 -ml-px pl-4 pr-3.5 py-2.5 border-l-2 border-transparent hover:bg-blue-50 transition">
                                         <span class="flex-1 min-w-0">
                                             {{-- MAK lengkap: payung diredupkan, kode belanja ditebalkan --}}
@@ -637,5 +665,23 @@
 
         if (btnPns) btnPns.addEventListener('click', () => isiInput(inputPns, btnPns));
         if (btnNonPns) btnNonPns.addEventListener('click', () => isiInput(inputNonPns, btnNonPns));
+    })();
+
+    (function () {
+        const panel = document.getElementById('mak-panel');
+        if (!panel) return;
+        const sections = Array.from(panel.querySelectorAll('.mak-section'));
+        if (!sections.length) return;
+        const terlihat = el => !el.hidden && !el.classList.contains('hidden') && el.style.display !== 'none';
+        function sync() {
+            sections.forEach(function (s) {
+                const ada = Array.from(panel.querySelectorAll('.mak-group[data-section="' + s.dataset.section + '"]')).some(terlihat);
+                s.classList.toggle('hidden', !ada);
+            });
+        }
+        new MutationObserver(function (muts) {
+            if (muts.some(m => m.target.classList && m.target.classList.contains('mak-group'))) sync();
+        }).observe(panel, { attributes: true, attributeFilter: ['class', 'style', 'hidden'], subtree: true });
+        sync();
     })();
 </script>

@@ -16,6 +16,7 @@ use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 use App\Services\MakSisaService;
 use App\Services\NomorMemoService;
+use App\Services\MakUnitService;
 use Illuminate\Validation\Rule;
 
 class AgendaController extends Controller
@@ -571,6 +572,7 @@ class AgendaController extends Controller
             ->orderBy('mak')
             ->get();
 
+        $makOptions = MakUnitService::tandai($makOptions, auth()->user());
         $makOutstandingDetail = MakSisaService::outstandingDetail(null, $agenda->id);
         $makOutstanding = array_map(fn($d) => $d['sendiri'] + $d['lain'], $makOutstandingDetail);
         $totalAsn = (int) $agenda->biaya_asn;

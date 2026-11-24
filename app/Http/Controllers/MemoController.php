@@ -10,6 +10,7 @@ use App\Models\Unit;
 use App\Services\MakSisaService;
 use App\Services\MemoTahapService;
 use App\Services\NomorMemoService;
+use App\Services\MakUnitService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -256,7 +257,7 @@ class MemoController extends Controller
     {
         $pegawaiList = Pegawai::orderBy('nama')->get();
         $nomorBerikutnya = NomorMemoService::dataBerikutnya();
-        $makOptions = MakOption::orderBy('mak')->get();
+        $makOptions = MakUnitService::tandai(MakOption::orderBy('mak')->get(), auth()->user());
         $makOutstanding = MakSisaService::outstandingDetail();
         $makSisaEfektif = MakSisaService::sisaEfektif();
 
@@ -327,8 +328,7 @@ class MemoController extends Controller
         );
 
         $pegawaiList = Pegawai::orderBy('nama')->get();
-        $makOptions = MakOption::orderBy('mak')->get();
-        // Nominal memo ini sendiri tidak ikut dihitung.
+        $makOptions = MakUnitService::tandai(MakOption::orderBy('mak')->get(), auth()->user());        // Nominal memo ini sendiri tidak ikut dihitung.
         $makOutstanding = MakSisaService::outstandingDetail($memo->id);
         $makSisaEfektif = MakSisaService::sisaEfektif($memo->id);
 
