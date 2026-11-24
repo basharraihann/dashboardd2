@@ -61,9 +61,13 @@
                     <select id="user-filter-role"
                         class="border border-gray-200 rounded-lg px-3.5 py-2 text-sm w-full sm:w-44 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition">
                         <option value="">Semua Role</option>
+                        <option value="super_admin">Super Admin</option>
                         <option value="admin">Administrator</option>
-                        <option value="tu">Tata Usaha (TU)</option>
+                        <option value="tu_sekretariat">TU Sekretariat</option>
+                        <option value="tu_unit">TU Unit</option>
+                        <option value="eselon2">Eselon II</option>
                         <option value="user">Staf / User</option>
+                        <option value="tu">Tata Usaha (role lama)</option>
                     </select>
                 </div>
 
@@ -143,37 +147,34 @@
                             <div class="min-w-0">
                                 <p class="xl:hidden text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">
                                     Role</p>
-                                @if ($u->isAdmin())
-                                    <span
-                                        class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                            aria-hidden="true">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                        </svg>
-                                        Administrator
-                                    </span>
-                                @elseif ($u->isTu())
-                                    <span
-                                        class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                            aria-hidden="true">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        Tata Usaha
-                                    </span>
-                                @else
-                                    <span
-                                        class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                                            aria-hidden="true">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                        </svg>
-                                        Staf / User
-                                    </span>
-                                @endif
+                                @php
+                                    // Warna per role. Hanya class yang sudah ada di CSS build.
+                                    $badgeRole = [
+                                        'super_admin' => ['bg-rose-50 text-rose-700 border-rose-200', 'shield'],
+                                        'admin' => ['bg-purple-50 text-purple-700 border-purple-200', 'shield'],
+                                        'tu_sekretariat' => ['bg-cyan-100 text-cyan-700 border-sky-200', 'doc'],
+                                        'tu_unit' => ['bg-sky-50 text-sky-700 border-sky-200', 'doc'],
+                                        'eselon2' => ['bg-amber-50 text-amber-700 border-amber-200', 'user'],
+                                        'user' => ['bg-emerald-50 text-emerald-700 border-emerald-200', 'user'],
+                                        'tu' => ['bg-amber-50 text-amber-700 border-amber-200', 'doc'],
+                                    ];
+                                    [$kelasRole, $ikonRole] = $badgeRole[$u->role] ?? $badgeRole['user'];
+                                    $ikonPath = [
+                                        'shield' => 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+                                        'doc' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+                                        'user' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+                                    ][$ikonRole];
+                                    $labelRole = $u->role === 'tu' ? 'Tata Usaha (lama)' : $u->roleLabel();
+                                @endphp
+                                <span
+                                    class="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold border {{ $kelasRole }}">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                        aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="{{ $ikonPath }}" />
+                                    </svg>
+                                    {{ $labelRole }}
+                                </span>
                             </div>
 
                             {{-- Unit --}}
