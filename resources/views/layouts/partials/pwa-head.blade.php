@@ -8,4 +8,3 @@
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
 <link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon.png') }}">
-<link rel="icon" type="image/png" sizes="192x192" href="{{ asset('icons/icon-192.png') }}">
