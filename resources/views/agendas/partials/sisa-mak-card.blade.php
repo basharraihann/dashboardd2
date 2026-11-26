@@ -118,8 +118,11 @@ Sumber data: atribut data-* pada <select id="mak-select"> (pagu, realisasi,
                 const selisih = efektif - kebutuhan;
                 const cukup = kebutuhan <= 0 || efektif >= kebutuhan;
 
-                el('sisa-mak-kode').textContent = opt.value;
-                el('sisa-mak-uraian').textContent = opt.dataset.uraianBelanja || '';
+                // Option item: tampilkan MAK + kode item dan uraian item-nya
+                el('sisa-mak-kode').textContent = opt.dataset.kodeTampil || opt.value;
+                el('sisa-mak-uraian').textContent = opt.dataset.item
+                    ? 'Item: ' + (opt.dataset.itemUraian || '-') + ' · ' + (opt.dataset.uraianBelanja || '')
+                    : (opt.dataset.uraianBelanja || '');
 
                 const periode = [];
                 if (opt.dataset.periode) periode.push('Periode ' + opt.dataset.periode);

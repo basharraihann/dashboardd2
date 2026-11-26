@@ -80,6 +80,76 @@ class MakSisaService
         return $hasil;
     }
 
+    /**
+     * Outstanding per ITEM (level paling bawah FA), kunci "MAK|kodeItem".
+     * Hanya memo yang menyimpan item (item_mak / item_mak_pns / item_mak_non_pns).
+     * Aturan status sama dengan outstanding() per MAK.
+     *
+     * @return array<string,int>
+     */
+    public static function outstandingItem(
+        ?int $kecualiEntryId = null,
+        ?int $kecualiAgendaId = null,
+        bool $semuaUnit = false
+    ): array {
+        $hasil = [];
+        $tambah = function (?string $mak, $items) use (&$hasil) {
+            foreach ((array) $items as $it) {
+                $kode = trim((string) ($it['kode'] ?? ''));
+                if ($kode === '' || blank($mak)) {
+                    continue;
+                }
+                $k = trim($mak) . '|' . $kode;
+                $hasil[$k] = ($hasil[$k] ?? 0) + (int) ($it['jumlah'] ?? 0);
+            }
+        };
+
+        MemoEntry::query()
+            ->when($semuaUnit, fn($q) => $q->withoutGlobalScope('unit'))
+            ->where('status_anggaran', 'outstanding')
+            ->whereNotNull('mak')
+            ->whereNotNull('item_mak')
+            ->when($kecualiEntryId, fn($q) => $q->where('id', '!=', $kecualiEntryId))
+            ->get(['id', 'mak', 'item_mak'])
+            ->each(fn($e) => $tambah($e->mak, $e->item_mak));
+
+        Agenda::query()
+            ->when($semuaUnit, fn($q) => $q->withoutGlobalScope('unit'))
+            ->whereNotNull('mak')
+            ->when($kecualiAgendaId, fn($q) => $q->where('id', '!=', $kecualiAgendaId))
+            ->where(fn($q) => $q->whereNotNull('item_mak_pns')->orWhereNotNull('item_mak_non_pns'))
+            ->get()
+            ->each(function ($a) use ($tambah) {
+                if (filled($a->nomor_memo_pns) && ($a->status_pns ?: 'outstanding') === 'outstanding') {
+                    $tambah($a->mak, $a->item_mak_pns);
+                }
+                if (filled($a->nomor_memo_non_pns) && ($a->status_non_pns ?: 'outstanding') === 'outstanding') {
+                    $tambah($a->mak, $a->item_mak_non_pns);
+                }
+            });
+
+        return $hasil;
+    }
+
+    /**
+     * Outstanding per item, dipisah unit sendiri vs unit lain (kunci "MAK|kodeItem").
+     *
+     * @return array<string, array{sendiri:int, lain:int}>
+     */
+    public static function outstandingItemDetail(?int $kecualiEntryId = null, ?int $kecualiAgendaId = null): array
+    {
+        $sendiri = self::outstandingItem($kecualiEntryId, $kecualiAgendaId, false);
+        $semua = self::outstandingItem($kecualiEntryId, $kecualiAgendaId, true);
+
+        $hasil = [];
+        foreach ($semua as $k => $total) {
+            $s = (int) ($sendiri[$k] ?? 0);
+            $hasil[$k] = ['sendiri' => $s, 'lain' => max((int) $total - $s, 0)];
+        }
+
+        return $hasil;
+    }
+
     public static function sisaEfektif(?int $kecualiEntryId = null): array
     {
         $out = self::outstanding($kecualiEntryId, null, true);

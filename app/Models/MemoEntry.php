@@ -58,6 +58,7 @@ class MemoEntry extends Model
     protected $casts = [
         'tanggal_memo' => 'date',
         'perlu_nominatif' => 'boolean',
+        'item_mak' => 'array',
     ];
 
     /**

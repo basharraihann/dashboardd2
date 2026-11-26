@@ -150,6 +150,7 @@ Route::middleware('auth')->group(function () {
 
             Route::middleware('role:user,admin,super_admin')->group(function () {
                 Route::get('berikutnya', 'nomorBerikutnya')->name('nomor-berikutnya');
+                Route::get('item-mak', 'itemMak')->name('item-mak');
                 Route::get('create', 'create')->name('create');
                 Route::post('/', 'store')->name('store');
                 Route::get('{memo}/edit', 'edit')->name('edit');

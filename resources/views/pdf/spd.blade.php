@@ -7,7 +7,7 @@
 </head>
 
 <body>
-    @include('pdf._tanda-sistem')
+    {{-- SPD sengaja TANPA tanda "dibuat melalui sistem" (permintaan: hilangkan mark di PDF SPD). --}}
 
     <div id="spd-page">
         <style>
@@ -476,7 +476,8 @@
                         <tr>
                             <td class="lbl">Pada Tanggal</td>
                             <td class="colon">:</td>
-                            <td>{{ now()->translatedFormat('d F Y') }}</td>
+                            {{-- Tanggal SPD = tanggal awal perjalanan dinas (bukan tanggal dokumen dibuat) --}}
+                            <td>{{ $tglMulaiSpd->translatedFormat('d F Y') }}</td>
                         </tr>
                     </table>
 

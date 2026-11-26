@@ -20,6 +20,11 @@
 
     $makOptions = $makOptions ?? collect();
     $currentMak = old('mak', $agenda->mak ?? null);
+    // Item yang tersimpan (sama untuk memo PNS & Non PNS karena MAK-nya satu)
+    $currentItem = old('item_kode', $agenda
+        ? (\App\Services\MakItemService::kodePertama($agenda->item_mak_pns)
+            ?? \App\Services\MakItemService::kodePertama($agenda->item_mak_non_pns))
+        : null);
     $makAdaDiDaftar = $makOptions->contains('mak', $currentMak);
     // Manual input kelihatan default kalau: gak ada master MAK sama sekali,
     // ATAU mak yang lagi tersimpan itu gak ketemu di daftar (misal diisi
@@ -79,6 +84,8 @@
                             data-outstanding-lain="{{ (int) ($makOutstandingDetail[$opt->mak]['lain'] ?? 0) }}"
                             data-periode="{{ $opt->periode }}"
                             data-per-tanggal="{{ $opt->per_tanggal ? \Carbon\Carbon::parse($opt->per_tanggal)->translatedFormat('d M Y') : '' }}"
+                            data-rekom="{{ ($opt->rekomendasi ?? false) ? 1 : 0 }}"
+                            data-unit-pemilik="{{ implode(', ', $opt->unit_pemilik ?? []) }}"
                             @selected($currentMak === $opt->mak)>
                             {{ $opt->mak }}
                         </option>
@@ -210,12 +217,15 @@
             </p>
         @endif
 
+        {{-- MAK sampai level item + peringatan MAK unit lain --}}
+        @include('partials.mak-item-picker', ['varian' => 'agenda', 'kebutuhan' => $kebutuhan])
+
         <input type="text" id="mak-input" name="mak" value="{{ $currentMak }}" required
             placeholder="7458.ABR.006.075.EE.524119"
             class="mt-2 w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm font-mono focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition placeholder:text-gray-300 {{ $tampilkanManual ? '' : 'hidden' }}">
         <p class="text-xs text-gray-400 mt-1.5">
-            Format: KodeGiat.KodeKomponen.KodeAkun.KodeBelanja dipisah titik jadi 6 bagian. Kode di bawah otomatis
-            terisi dari MAK.
+            Pilih sampai level item. Format MAK: KodeGiat.KodeKomponen.KodeAkun.KodeBelanja dipisah titik jadi 6
+            bagian. Kode di bawah otomatis terisi dari MAK.
         </p>
         @error('mak')
             <p class="text-xs text-red-500 mt-1">{{ $message }}</p>
@@ -226,6 +236,8 @@
         @includeWhen(isset($totalBiaya), 'agendas.partials.sisa-mak-card')
     </div>
 </section>
+
+
 
 {{-- ===================== KARTU 2 — KLASIFIKASI ===================== --}}
 <section class="bg-white shadow-sm rounded-2xl border border-gray-100">
@@ -497,10 +509,11 @@
             }
 
             makInput.classList.add('hidden');
-            makInput.value = makSelect.value;
+            // Option item bernilai "MAK|kodeItem": yang dikirim sebagai MAK tetap 6 bagian (data-mak)
+            const opt = makSelect.selectedOptions[0];
+            makInput.value = (opt && opt.dataset.mak) || makSelect.value;
             makInput.dispatchEvent(new Event('input')); // update preview kode giat/komponen/akun/belanja
 
-            const opt = makSelect.selectedOptions[0];
             if (!opt || !opt.value) return;
 
             if (uraianGiat) uraianGiat.value = opt.dataset.uraianGiat || '';

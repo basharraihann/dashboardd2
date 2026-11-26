@@ -588,6 +588,8 @@
             // OUT: kunci MAK -> total outstanding, dikirim server lewat /anggaran/data.
             // Kunci = Kegiatan.KRO.RO.Komponen.Sub.Akun (6 bagian). Harus sama dengan kunciMak() di AnggaranController.
             let OUT = {};
+            // OUTI: "kunci MAK|kode item" -> outstanding memo yang dipilih sampai level item.
+            let OUTI = {};
             const makKey = (it) => {
                 const last = (s) => String(s ?? '').split('.').pop();
                 return [last(it.keg_kode), it.ro_kode, padKode('komp', String(it.komp_kode ?? '')), last(it.sub_kode), it.akun_kode].join('.');
@@ -646,7 +648,9 @@
                         kodes: [kode.toLowerCase()], ur: uraian.toLowerCase(),
                         v, children: [], parent: node,
                         us: new Set([it.unit]), ss: it.sub_unit ? new Set([it.sub_unit]) : new Set(),
-                        out: null,   // memo menempel di MAK, bukan di item
+                        // Outstanding item: memo yang memilih MAK sampai level item.
+                        // Memo lama tanpa item tetap hanya terhitung di level Akun.
+                        out: Number(OUTI[makKey(it) + '|' + kode]) || 0,
                     };
                     node.children.push(leaf);
                     byId.set(leaf.id, leaf);
@@ -1543,7 +1547,7 @@
                     const expandable = hasKids && r.depth < maxDepth;
                     const opened = expandable && isOpen(r);
 
-                    // Sisa Efektif = Sisa - Outstanding. Item tidak punya outstanding (null), jadi tidak dihitung.
+                    // Sisa Efektif = Sisa - Outstanding (Akun ke atas dan Item).
                     const sisaEf = (r.out === null || r.out === undefined) ? null : (v.pagu - v.sd - r.out);
 
                     // warna latar: pilihan > cocok > jenis level
@@ -1782,6 +1786,7 @@
                     }
                     // Peta outstanding per MAK (kosong bila belum ada memo outstanding)
                     OUT = d.outstanding || {};
+                    OUTI = d.outstanding_item || {};
                     // Server: unit (mis. "Asdep 1 D1") + induk (mis. "D1").
                     // Dashboard: unit = kelompok (induk), sub_unit = unit kerja di dalamnya.
                     items = d.items.map((it) => {

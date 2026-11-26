@@ -10,6 +10,8 @@
         $allItems = collect($grouped)->flatMap(fn($g) => $g);
         $periode = $allItems->pluck('periode')->filter()->unique()->values()->implode(', ');
         $totalSisa = $allItems->sum('sisa');
+        $itemsPerMak = $itemsPerMak ?? [];
+        $jumlahItem = collect($itemsPerMak)->sum(fn($l) => count($l));
 
         // Warna sisa: merah = minus, kuning = hampir habis (<= 10% pagu), hijau = masih longgar
         $sisaClass = function ($item) {
@@ -38,6 +40,11 @@
                     <span class="text-xs font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full">
                         {{ $total }} nomor MAK
                     </span>
+                    @if ($jumlahItem > 0)
+                        <span class="text-xs font-medium text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-full">
+                            {{ $jumlahItem }} item
+                        </span>
+                    @endif
                     <span class="text-xs font-medium text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full">
                         Total sisa Rp {{ $rp($totalSisa) }}
                     </span>
@@ -72,6 +79,13 @@
                         class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                     Hanya yang masih ada sisa
                 </label>
+                @if ($jumlahItem > 0)
+                    <label class="inline-flex items-center gap-2 text-sm text-gray-600 select-none">
+                        <input type="checkbox" id="mak-show-item" checked
+                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        Tampilkan sampai level item
+                    </label>
+                @endif
             </div>
 
             <div class="rounded-xl border border-gray-100 overflow-hidden">
@@ -136,9 +150,12 @@
                                     </colgroup>
                                     <tbody class="divide-y divide-gray-50">
                                         @foreach ($items as $item)
-                                            @php $rowSearch = strtolower($item->mak . ' ' . $item->uraian_belanja); @endphp
+                                            @php
+                                                $rowSearch = strtolower($item->mak . ' ' . $item->uraian_belanja);
+                                                $anakItem = $itemsPerMak[$item->mak] ?? [];
+                                            @endphp
                                             <tr class="js-mak-row hover:bg-gray-50/60 transition" data-search="{{ $rowSearch }}"
-                                                data-sisa="{{ (int) $item->sisa }}">
+                                                data-sisa="{{ (int) $item->sisa }}" data-akun="{{ $item->mak }}">
                                                 <td class="py-2.5 pl-4 sm:pl-10 pr-4">
                                                     <span class="font-mono text-xs text-gray-500">
                                                         {{ \Illuminate\Support\Str::afterLast($item->mak, '.') }}
@@ -159,6 +176,29 @@
                                                     {{ $rp($item->sisa) }}
                                                 </td>
                                             </tr>
+                                            {{-- Rincian item (level paling bawah FA) di bawah akun --}}
+                                            @foreach ($anakItem as $it)
+                                                @php $itObj = (object) $it; @endphp
+                                                <tr class="js-mak-item-row bg-gray-50/40 hover:bg-gray-50 transition"
+                                                    data-akun="{{ $item->mak }}"
+                                                    data-search="{{ strtolower($item->mak . '.' . $it['kode'] . ' ' . $it['kode'] . ' ' . $it['uraian']) }}"
+                                                    data-sisa="{{ (int) $it['sisa'] }}">
+                                                    <td class="py-1.5 pl-8 sm:pl-14 pr-4">
+                                                        <span class="font-mono text-[11px] text-gray-400"
+                                                            title="{{ $item->mak }}.{{ $it['kode'] }}">↳ {{ $it['kode'] }}</span>
+                                                    </td>
+                                                    <td class="py-1.5 px-4 text-xs text-gray-600">{{ $it['uraian'] ?: '-' }}</td>
+                                                    <td class="hidden md:table-cell py-1.5 px-4 text-right text-xs tabular-nums text-gray-500">
+                                                        {{ $rp($it['pagu']) }}
+                                                    </td>
+                                                    <td class="hidden lg:table-cell py-1.5 px-4 text-right text-xs tabular-nums text-gray-500">
+                                                        {{ $rp($it['realisasi']) }}
+                                                    </td>
+                                                    <td class="py-1.5 px-4 text-right text-xs tabular-nums {{ $sisaClass($itObj) }}">
+                                                        {{ $rp($it['sisa']) }}
+                                                    </td>
+                                                </tr>
+                                            @endforeach
                                         @endforeach
                                     </tbody>
                                 </table>
@@ -180,12 +220,14 @@
         (function () {
             const input = document.getElementById('mak-search-input');
             const onlySisa = document.getElementById('mak-only-sisa');
+            const showItem = document.getElementById('mak-show-item');
             const groups = Array.from(document.querySelectorAll('.js-mak-group'));
             const noResult = document.getElementById('mak-no-result');
 
             function apply() {
                 const query = input.value.trim().toLowerCase();
                 const needSisa = onlySisa.checked;
+                const tampilItem = !showItem || showItem.checked;
                 let visibleGroupCount = 0;
 
                 groups.forEach(function (group) {
@@ -194,9 +236,23 @@
                     let anyRowVisible = false;
 
                     rows.forEach(function (row) {
-                        const textOk = headerMatch || row.dataset.search.includes(query);
+                        const akun = row.dataset.akun;
+                        const anak = Array.from(group.querySelectorAll('.js-mak-item-row'))
+                            .filter((r) => r.dataset.akun === akun);
+                        const akunMatch = headerMatch || row.dataset.search.includes(query);
+
+                        // Item tampil kalau: akun/kelompoknya cocok atau item itu sendiri cocok
+                        let adaAnak = false;
+                        anak.forEach(function (r) {
+                            const ok = tampilItem
+                                && (akunMatch || r.dataset.search.includes(query))
+                                && (!needSisa || parseInt(r.dataset.sisa, 10) > 0);
+                            r.style.display = ok ? '' : 'none';
+                            if (ok) adaAnak = true;
+                        });
+
                         const sisaOk = !needSisa || parseInt(row.dataset.sisa, 10) > 0;
-                        const show = textOk && sisaOk;
+                        const show = (akunMatch && sisaOk) || adaAnak;
                         row.style.display = show ? '' : 'none';
                         if (show) anyRowVisible = true;
                     });
@@ -210,6 +266,7 @@
 
             input.addEventListener('input', apply);
             onlySisa.addEventListener('change', apply);
+            if (showItem) showItem.addEventListener('change', apply);
         })();
     </script>
 </x-app-layout>

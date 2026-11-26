@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
+use App\Services\MakItemService;
 use App\Services\MakSisaService;
 use App\Services\NomorMemoService;
 use App\Services\MakUnitService;
@@ -585,6 +586,10 @@ class AgendaController extends Controller
         $totalNonAsn = (int) $agenda->biaya_non_asn;
         $totalBiaya = $totalAsn + $totalNonAsn;
 
+        // Pemilih MAK sampai level item: item FA per MAK + outstanding per item (agenda ini dikecualikan).
+        $makItems = array_intersect_key(MakItemService::semua(), array_flip($makOptions->pluck('mak')->all()));
+        $itemOutstanding = MakSisaService::outstandingItemDetail(null, $agenda->id);
+
         return view('agendas.anggaran', compact(
             'agenda',
             'pegawaiList',
@@ -593,7 +598,9 @@ class AgendaController extends Controller
             'makOutstandingDetail',
             'totalAsn',
             'totalNonAsn',
-            'totalBiaya'
+            'totalBiaya',
+            'makItems',
+            'itemOutstanding'
         ));
     }
 
@@ -665,8 +672,29 @@ class AgendaController extends Controller
             $snapshot['nominal_memo_non_pns'] = (int) $agenda->biaya_non_asn;
         }
 
+        // ---- Item anggaran (MAK sampai level item) ----
+        // Satu item untuk agenda ini (MAK-nya satu), dicatat di memo PNS & Non PNS dengan
+        // jumlah = nominal memo masing-masing. Memo SAKTI/SP2D tidak disentuh (sama seperti snapshot).
+        $itemData = [];
+        if (!$terkunciPns || !$terkunciNonPns) {
+            $itemKode = $request->validate(['item_kode' => ['nullable', 'string', 'max:30']])['item_kode'] ?? null;
+            // Cek item sekali (wajib kalau MAK punya item di FA aktif).
+            $cekItem = MakItemService::pilih($itemKode, $adminData['mak'], 0);
+
+            if (!$terkunciPns) {
+                $itemData['item_mak_pns'] = filled($nomorPns) && $cekItem
+                    ? MakItemService::pilih($itemKode, $adminData['mak'], (int) $agenda->biaya_asn)
+                    : null;
+            }
+            if (!$terkunciNonPns) {
+                $itemData['item_mak_non_pns'] = filled($nomorNonPns) && $cekItem
+                    ? MakItemService::pilih($itemKode, $adminData['mak'], (int) $agenda->biaya_non_asn)
+                    : null;
+            }
+        }
+
         // forceFill: kolom snapshot tidak ada di $fillable; semua isi sudah divalidasi di atas.
-        $agenda->forceFill(array_merge($picData, $adminData, $snapshot))->save();
+        $agenda->forceFill(array_merge($picData, $adminData, $snapshot, $itemData))->save();
 
         return redirect()->route('agendas.show', $agenda)
             ->with('success', 'Anggaran & nomor memo berhasil disimpan.');
@@ -791,12 +819,21 @@ class AgendaController extends Controller
         $agenda->load('pegawai');
         $snapshot = [];
 
+        // Jumlah item ikut nominal memo terbaru (dipakai outstanding per item)
+        $sesuaikanItem = function ($items, int $jumlah) {
+            return is_array($items) && $items
+                ? array_map(fn($it) => array_merge($it, ['jumlah' => $jumlah]), $items)
+                : $items;
+        };
+
         if (filled($agenda->nomor_memo_pns) && ($agenda->status_pns ?? 'outstanding') === 'outstanding') {
             $snapshot['nominal_memo_pns'] = (int) $agenda->biaya_asn;
+            $snapshot['item_mak_pns'] = $sesuaikanItem($agenda->item_mak_pns, (int) $agenda->biaya_asn);
         }
 
         if (filled($agenda->nomor_memo_non_pns) && ($agenda->status_non_pns ?? 'outstanding') === 'outstanding') {
             $snapshot['nominal_memo_non_pns'] = (int) $agenda->biaya_non_asn;
+            $snapshot['item_mak_non_pns'] = $sesuaikanItem($agenda->item_mak_non_pns, (int) $agenda->biaya_non_asn);
         }
 
         if ($snapshot) {

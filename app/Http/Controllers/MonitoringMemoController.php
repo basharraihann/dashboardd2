@@ -51,6 +51,12 @@ class MonitoringMemoController extends Controller
         $antreanOutstanding = $outstanding->sortByDesc('umur')->values();
         $antreanSakti = $sakti->sortByDesc('umur')->values();
         $antreanSp2d = $sp2dBulanIni->sortByDesc('tgl_sp2d')->values();
+        // SP2D bulan-bulan sebelumnya: ikut dikirim supaya data lama bisa dilihat
+        // (tersembunyi sampai filter "Data lama" dicentang).
+        $antreanSp2dLama = $memos->where('status', 'sp2d')
+            ->reject(fn($m) => $m['tgl_sp2d'] && $m['tgl_sp2d']->isSameMonth(now()))
+            ->sortByDesc('tgl_sp2d')
+            ->values();
 
         $logPerMemo = $this->logPerMemo($memos);
 
@@ -59,6 +65,7 @@ class MonitoringMemoController extends Controller
             'antreanOutstanding',
             'antreanSakti',
             'antreanSp2d',
+            'antreanSp2dLama',
             'logPerMemo'
         ));
     }
@@ -111,12 +118,17 @@ class MonitoringMemoController extends Controller
      */
     private function ringkasanUnit($memos)
     {
+        $bulanIni = fn($m) => $m['status'] !== 'sp2d'
+            || ($m['tgl_sp2d'] && $m['tgl_sp2d']->isSameMonth(now()));
+
         return $memos
             ->where('status', '!=', 'batal')
-            ->filter(fn($m) => $m['status'] !== 'sp2d'
-                || ($m['tgl_sp2d'] && $m['tgl_sp2d']->isSameMonth(now())))
             ->groupBy(fn($m) => $m['unit'] ?: '__none')
-            ->map(function ($grup, $unit) {
+            ->map(function ($semua, $unit) use ($bulanIni) {
+                // Angka ringkasan tetap: SP2D hanya bulan ini. SP2D lama dihitung terpisah
+                // supaya unit yang hanya punya data lama tetap bisa dibuka lewat filter "Data lama".
+                $grup = $semua->filter($bulanIni);
+                $lamaSp2d = $semua->count() - $grup->count();
                 $o = $grup->where('status', 'outstanding');
                 $s = $grup->where('status', 'sakti');
                 $p = $grup->where('status', 'sp2d');
@@ -135,6 +147,7 @@ class MonitoringMemoController extends Controller
                     'sp2d_total' => (int) $p->sum('nominal'),
                     'persen_sp2d' => $jumlah > 0 ? (int) round($p->count() / $jumlah * 100) : 0,
                     'lama' => $o->where('umur', '>', 30)->count(),
+                    'sp2d_lama' => $lamaSp2d,
                 ];
             })
             ->sortByDesc('outstanding_total')
@@ -166,7 +179,7 @@ class MonitoringMemoController extends Controller
                     'Perjalanan Dinas',
                     $a->uraian_kegiatan,
                     $pic,
-                    $a->mak,
+                    $this->makTampil($a->mak, $a->item_mak_pns),
                     (int) ($a->nominal_memo_pns ?? $a->biaya_asn),
                     $a->status_pns,
                     $a->created_at,
@@ -185,7 +198,7 @@ class MonitoringMemoController extends Controller
                     'Perjalanan Dinas',
                     $a->uraian_kegiatan,
                     $pic,
-                    $a->mak,
+                    $this->makTampil($a->mak, $a->item_mak_non_pns),
                     (int) ($a->nominal_memo_non_pns ?? $a->biaya_non_asn),
                     $a->status_non_pns,
                     $a->created_at,
@@ -205,7 +218,7 @@ class MonitoringMemoController extends Controller
                 $e->jenis_label,
                 $e->uraian_kegiatan,
                 $e->pic->nama_gelar ?? $e->pic->nama ?? '-',
-                $e->mak,
+                $this->makTampil($e->mak, $e->item_mak),
                 (int) $e->nominal,
                 $e->status_anggaran,
                 $e->tanggal_memo,
@@ -223,6 +236,14 @@ class MonitoringMemoController extends Controller
             'tahap' => $peta[$r['id']] ?? MemoTahapService::dariStatus($r['status']),
             'pengajuan' => $pengajuan[$r['id']] ?? null,
         ]))->values();
+    }
+
+    /** MAK untuk tampilan & pencarian: sampai level item kalau memo menyimpan item. */
+    private function makTampil(?string $mak, $items): ?string
+    {
+        $item = \App\Services\MakItemService::kodePertama(is_array($items) ? $items : null);
+
+        return ($mak && $item) ? $mak . '.' . $item : $mak;
     }
 
     /**

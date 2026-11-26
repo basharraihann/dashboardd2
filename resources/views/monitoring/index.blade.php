@@ -68,6 +68,10 @@
         foreach ($antreanSp2d as $m) {
             $semuaMemo->push($m + ['_status' => 'sp2d']);
         }
+        // SP2D bulan lalu: tersembunyi sampai filter "Data lama" dicentang
+        foreach ($antreanSp2dLama ?? [] as $m) {
+            $semuaMemo->push($m + ['_status' => 'sp2d', '_lama' => true]);
+        }
         $memoPerUnit = $semuaMemo
             ->groupBy(fn($m) => $m['unit'] ?: '__none')
             ->map(fn($g) => $g->sort(fn($a, $b) => [$rankStatus[$a['_status']], -($a['umur'] ?? 0)] <=> [$rankStatus[$b['_status']], -($b['umur'] ?? 0)])->values());
@@ -103,7 +107,7 @@
                 <div class="px-4 pt-4 sm:px-6 sm:pt-6 pb-4">
                     <h3 id="judul-unit" class="text-lg font-bold text-gray-800">Progres per unit</h3>
                     <p class="mt-0.5 text-sm text-gray-500 max-w-3xl">
-                        Klik Show untuk daftar memo unit. SP2D bulan ini saja.
+                        Klik Show untuk daftar memo unit. SP2D bulan ini saja; centang <b>Data lama</b> untuk melihat SP2D bulan sebelumnya.
                     </p>
 
                     {{-- Legenda dua baris. Labelnya sama dengan judul kolom tabel di bawah. --}}
@@ -180,6 +184,20 @@
                         <label class="inline-flex items-center gap-1.5 pb-1.5 text-xs text-gray-700 cursor-pointer">
                             <input id="f-lama" type="checkbox" class="rounded border-gray-300"> &gt; 30 hari
                         </label>
+                        <div>
+                            <label for="f-urut" class="{{ $fl }}">Urutkan</label>
+                            <select id="f-urut" class="{{ $fi }}">
+                                <option value="">Prioritas (default)</option>
+                                <option value="update-baru">Update terbaru</option>
+                                <option value="update-lama">Update terlama</option>
+                                <option value="tgl-baru">Tanggal memo terbaru</option>
+                                <option value="tgl-lama">Tanggal memo terlama</option>
+                            </select>
+                        </div>
+                        <label class="inline-flex items-center gap-1.5 pb-1.5 text-xs text-gray-700 cursor-pointer"
+                            title="Tampilkan juga memo yang sudah SP2D di bulan-bulan sebelumnya">
+                            <input id="f-arsip" type="checkbox" class="rounded border-gray-300"> Data lama (SP2D bulan lalu)
+                        </label>
                         <button type="button" id="f-reset"
                             class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Reset</button>
                     </div>
@@ -211,7 +229,7 @@
                                 $js = (int) $u['sakti_jumlah'];
                                 $jp = (int) $u['sp2d_jumlah'];
                             @endphp
-                            <div class="js-unit">
+                            <div class="js-unit" data-hanya-lama="{{ ($u['jumlah'] ?? 0) === 0 && ($u['sp2d_lama'] ?? 0) > 0 ? 1 : 0 }}">
                                 <div class="pu-grid px-4 sm:px-6 py-3.5 hover:bg-gray-50 transition">
                                     {{-- Unit --}}
                                     <div class="min-w-0">
@@ -329,6 +347,16 @@
                                                                                         : (in_array($tahapTampil, ['sakti', 'otp_ppk', 'ppspm', 'sp2d'], true) ? 'kosong' : '-');
 
                                                                                     // Teks pencarian (huruf kecil)
+                                                                                    // Untuk urutan: tanggal memo & aktivitas terakhir (log/SAKTI/SP2D)
+                                                                                    $tglUrut = $m['tgl_memo'] ? $m['tgl_memo']->timestamp : 0;
+                                                                                    $logTerakhir = $logs->first()['waktu'] ?? null;
+                                                                                    $updateUrut = max(
+                                                                                        $tglUrut,
+                                                                                        $m['tgl_sakti'] ? $m['tgl_sakti']->timestamp : 0,
+                                                                                        $m['tgl_sp2d'] ? $m['tgl_sp2d']->timestamp : 0,
+                                                                                        $logTerakhir ? $logTerakhir->timestamp : 0
+                                                                                    );
+
                                                                                     $cari = \Illuminate\Support\Str::lower(implode(' ', array_filter([
                                                                                         $m['nomor_memo'],
                                                                                         $m['uraian'] ?? '',
@@ -342,7 +370,9 @@
                                                                                 <tr class="js-memo-row hover:bg-blue-50/30 transition" data-cari="{{ $cari }}"
                                                                                     data-status="{{ $st }}" data-tahap="{{ $tahapTampil }}"
                                                                                     data-dok="{{ $dok }}" data-pengajuan="{{ $pengajuan ? 1 : 0 }}"
-                                                                                    data-umur="{{ (int) ($m['umur'] ?? 0) }}" data-log="{{ $logId }}">
+                                                                                    data-umur="{{ (int) ($m['umur'] ?? 0) }}" data-log="{{ $logId }}"
+                                                                                    data-arsip="{{ !empty($m['_lama']) ? 1 : 0 }}" data-urut="{{ $loop->index }}"
+                                                                                    data-tgl="{{ $tglUrut }}" data-update="{{ $updateUrut }}">
                                                                                     <td class="pl-4 pr-2 py-2.5 align-top">
                                                                                         <p class="text-xs font-semibold text-gray-900 tabular-nums break-words">
                                                                                             {!! str_replace(['.', '/'], ['.<wbr>', '/<wbr>'], e($m['nomor_memo'])) !!}
@@ -488,8 +518,8 @@
                                                                                                         @csrf
                                                                                                         <input type="hidden" name="status" value="sp2d">
                                                                                                         <input type="hidden" name="ids[]" value="{{ $m['id'] }}">
+                                                                                                        {{-- Tanggal cair boleh dimajukan (tanpa batas hari ini) --}}
                                                                                                         <input type="date" name="tanggal" required
-                                                                                                            max="{{ now()->toDateString() }}"
                                                                                                             value="{{ now()->toDateString() }}" title="Tanggal cair"
                                                                                                             aria-label="Tanggal cair"
                                                                                                             class="w-full min-w-0 border border-gray-200 rounded-md px-1.5 py-1 text-[11px] text-gray-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none">
@@ -836,6 +866,7 @@
             const F = {
                 cari: $('f-cari'), status: $('f-status'), tahap: $('f-tahap'),
                 dok: $('f-dok'), pengajuan: $('f-pengajuan'), lama: $('f-lama'),
+                urut: $('f-urut'), arsip: $('f-arsip'),
             };
             const adaFilter = !!F.cari;
 
@@ -843,7 +874,29 @@
                 return {
                     cari: F.cari.value, status: F.status.value, tahap: F.tahap.value, dok: F.dok.value,
                     pengajuan: F.pengajuan.checked, lama: F.lama.checked,
+                    urut: F.urut ? F.urut.value : '', arsip: F.arsip ? F.arsip.checked : false,
                 };
+            }
+
+            // Urutkan baris memo di tiap tabel unit. Baris log ikut pindah di bawah barisnya.
+            function urutkan(mode) {
+                const kunci = {
+                    '': (d) => Number(d.urut),
+                    'update-baru': (d) => -Number(d.update),
+                    'update-lama': (d) => Number(d.update),
+                    'tgl-baru': (d) => -Number(d.tgl),
+                    'tgl-lama': (d) => Number(d.tgl),
+                }[mode] || ((d) => Number(d.urut));
+
+                document.querySelectorAll('.js-unit tbody').forEach(function (tb) {
+                    const rows = Array.from(tb.querySelectorAll(':scope > .js-memo-row'));
+                    rows.sort((a, b) => (kunci(a.dataset) - kunci(b.dataset)) || (Number(a.dataset.urut) - Number(b.dataset.urut)));
+                    rows.forEach(function (tr) {
+                        const log = document.getElementById(tr.dataset.log);
+                        tb.appendChild(tr);
+                        if (log) tb.appendChild(log);
+                    });
+                });
             }
 
             function terapkan() {
@@ -852,11 +905,15 @@
                 const aktif = !!(q || v.status || v.tahap || v.dok || v.pengajuan || v.lama);
                 let total = 0, cocok = 0;
 
+                urutkan(v.urut);
+
                 document.querySelectorAll('.js-unit').forEach(function (unit) {
                     let n = 0;
                     unit.querySelectorAll('.js-memo-row').forEach(function (tr) {
                         const d = tr.dataset;
-                        const ok = (!q || d.cari.indexOf(q) !== -1)
+                        const arsipOk = v.arsip || d.arsip !== '1';
+                        const ok = arsipOk
+                            && (!q || d.cari.indexOf(q) !== -1)
                             && (!v.status || d.status === v.status)
                             && (!v.tahap || d.tahap === v.tahap)
                             && (!v.dok || d.dok === v.dok)
@@ -865,10 +922,11 @@
                         tr.hidden = !ok;
                         const log = document.getElementById(d.log);
                         if (log) log.hidden = !ok;
-                        total++;
+                        if (arsipOk) total++;
                         if (ok) { n++; cocok++; }
                     });
-                    unit.hidden = aktif && n === 0;
+                    // Unit yang hanya punya SP2D lama muncul kalau "Data lama" dicentang
+                    unit.hidden = (aktif && n === 0) || (!v.arsip && unit.dataset.hanyaLama === '1');
                     // Saat memfilter, buka unit yang punya hasil supaya langsung terlihat
                     if (aktif && n > 0) {
                         const btn = unit.querySelector('.js-unit-toggle');
@@ -887,13 +945,18 @@
                 if (awal) {
                     F.cari.value = awal.cari || ''; F.status.value = awal.status || ''; F.tahap.value = awal.tahap || '';
                     F.dok.value = awal.dok || ''; F.pengajuan.checked = !!awal.pengajuan; F.lama.checked = !!awal.lama;
+                    if (F.urut) F.urut.value = awal.urut || '';
+                    if (F.arsip) F.arsip.checked = !!awal.arsip;
                 }
                 let timer;
                 F.cari.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(terapkan, 150); });
-                [F.status, F.tahap, F.dok, F.pengajuan, F.lama].forEach(function (el) { el.addEventListener('change', terapkan); });
+                [F.status, F.tahap, F.dok, F.pengajuan, F.lama, F.urut, F.arsip].filter(Boolean)
+                    .forEach(function (el) { el.addEventListener('change', terapkan); });
                 $('f-reset').addEventListener('click', function () {
                     F.cari.value = ''; F.status.value = ''; F.tahap.value = ''; F.dok.value = '';
                     F.pengajuan.checked = false; F.lama.checked = false;
+                    if (F.urut) F.urut.value = '';
+                    if (F.arsip) F.arsip.checked = false;
                     terapkan();
                 });
             }

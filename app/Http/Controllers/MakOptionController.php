@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MakOption;
+use App\Services\MakItemService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -18,6 +19,8 @@ class MakOptionController extends Controller
         return view('mak-options.index', [
             'grouped' => $grouped,
             'total' => $makOptions->count(),
+            // Rincian sampai level item (FA aktif), kunci = MAK 6 bagian
+            'itemsPerMak' => MakItemService::semua(),
         ]);
     }
 

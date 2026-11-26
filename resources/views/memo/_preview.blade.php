@@ -1,8 +1,8 @@
 {{--
-Live preview memo (2 halaman A4: Memorandum + Lampiran Surat), meniru template PDF.
+Live preview memo (3 halaman A4: Memorandum + Lampiran Surat + Lampiran Memorandum), meniru template PDF.
 Dipasang di kolom kanan form: @include('memo._preview')
 Membaca nilai langsung dari field form (tanpa request ke server).
-Halaman 3 (Lampiran Memorandum) tidak ditampilkan karena datanya dari agenda.
+Halaman 3 (Lampiran Memorandum) khusus memo yang dibuat langsung; memo dari agenda tidak lewat form ini.
 --}}
 
 <aside id="memo-preview" class="hidden min-[1180px]:block min-[1180px]:sticky min-[1180px]:top-4 self-start min-w-0">
@@ -136,6 +136,12 @@ Halaman 3 (Lampiran Memorandum) tidak ditampilkan karena datanya dari agenda.
                             <tr>
                                 <td><span data-pv="kode_belanja" data-ph=""></span></td>
                                 <td><span data-pv="uraian_belanja" data-ph=""></span></td>
+                                {{-- Kalau ada item, jumlah ditulis sekali di baris item (sama dengan PDF) --}}
+                                <td class="text-right"><strong id="pv-total-belanja" data-pv="total_lamp" data-ph="Rp."></strong></td>
+                            </tr>
+                            <tr id="pv-item-row" style="display:none;">
+                                <td><span data-pv="item_kode" data-ph=""></span></td>
+                                <td><span data-pv="item_uraian" data-ph=""></span></td>
                                 <td class="text-right"><strong data-pv="total_lamp" data-ph="Rp."></strong></td>
                             </tr>
                         </tbody>
@@ -173,6 +179,72 @@ Halaman 3 (Lampiran Memorandum) tidak ditampilkan karena datanya dari agenda.
                                 <div class="ttd-name"><span data-pv="verifikasi"></span></div>
                                 <div class="ttd-nip" data-pv-nip="verifikasi"></div>
                             </td>
+                        </tr>
+                    </table>
+                </div>
+
+                {{-- ================= HALAMAN 3: LAMPIRAN MEMORANDUM ================= --}}
+                <div class="pv-paper" data-page="2">
+                    <div style="text-align:center; font-weight:bold; margin-bottom:10px;">LAMPIRAN MEMORANDUM</div>
+                    <div style="text-align:center; font-weight:bold; margin-bottom:6px;"><span data-pv="perihal"></span></div>
+
+                    <table class="lamp3" style="margin-bottom:18px;">
+                        <tr>
+                            <th>Kode Akun/Item</th>
+                            <th style="width:110px;">Pagu</th>
+                            <th style="width:110px;">Pengajuan</th>
+                            <th style="width:90px;">Klasifikasi<br>(TKDN, PDN, Impor)</th>
+                            <th style="width:60px;">Nilai %</th>
+                        </tr>
+                        <tr>
+                            <td><span data-pv="mak" data-ph=""></span></td>
+                            <td class="text-right"><span data-pv="pagu_akun" data-ph="-"></span></td>
+                            <td class="text-right"><span data-pv="pengajuan" data-ph=""></span></td>
+                            <td class="text-center"><span data-pv="klasifikasi" data-ph=""></span></td>
+                            <td class="text-center"><span data-pv="nilai" data-ph=""></span></td>
+                        </tr>
+                        <tr id="pv-lamp-item" style="display:none;">
+                            <td><span data-pv="item_lengkap" data-ph=""></span></td>
+                            <td class="text-right"><span data-pv="pagu_item" data-ph="-"></span></td>
+                            <td class="text-right"><span data-pv="pengajuan" data-ph=""></span></td>
+                            <td class="text-center"><span data-pv="klasifikasi" data-ph=""></span></td>
+                            <td class="text-center"><span data-pv="nilai" data-ph=""></span></td>
+                        </tr>
+                        <tr>
+                            <td class="text-center">TOTAL</td>
+                            <td></td>
+                            <td class="text-right"><span data-pv="pengajuan" data-ph=""></span></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </table>
+
+                    <div style="text-align:center; font-weight:bold; margin-bottom:6px;">RINCIAN TRANSFER</div>
+                    <table class="lamp3">
+                        <tr>
+                            <th>Nama</th>
+                            <th colspan="2">Keterangan Transfer</th>
+                            <th style="width:130px;">Total Bersih (Rp)</th>
+                        </tr>
+                        <tr>
+                            <td><span data-pv="penerima" data-ph="-"></span></td>
+                            <td class="text-center" style="width:90px;"><span data-pv="bank" data-ph="-"></span></td>
+                            <td class="text-center" style="width:120px;"><span data-pv="rekening" data-ph="-"></span></td>
+                            <td class="text-right"><span data-pv="bersih" data-ph=""></span></td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="text-right"><strong>Total</strong></td>
+                            <td class="text-right"><strong data-pv="bersih" data-ph=""></strong></td>
+                        </tr>
+                    </table>
+                    <table class="lamp3" style="margin-top:-1px;">
+                        <tr>
+                            <td style="width:60px;">ST</td>
+                            <td><span data-pv="st" data-ph="-"></span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding:18px 5px;">Perihal</td>
+                            <td style="padding:18px 5px;"><span data-pv="perihal" data-ph=""></span></td>
                         </tr>
                     </table>
                 </div>
@@ -390,6 +462,24 @@ Halaman 3 (Lampiran Memorandum) tidak ditampilkan karena datanya dari agenda.
         text-decoration: underline;
     }
 
+    /* Halaman 3: Lampiran Memorandum */
+    #memo-preview table.lamp3 {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    #memo-preview table.lamp3 th,
+    #memo-preview table.lamp3 td {
+        border: 1px solid #000;
+        padding: 3px 5px;
+        font-size: 13px;
+    }
+
+    #memo-preview table.lamp3 th {
+        background: #f0f0f0;
+        text-align: center;
+    }
+
     /* Field kosong: placeholder abu-abu */
     #memo-preview .pv-empty {
         color: #9ca3af;
@@ -509,6 +599,35 @@ Halaman 3 (Lampiran Memorandum) tidak ditampilkan karena datanya dari agenda.
             set('kode_belanja', val('preview-kode-belanja'));
             set('uraian_belanja', txt('preview-uraian-belanja'));
 
+            // Item & halaman 3 (Lampiran Memorandum), sama dengan PDF memo langsung
+            const makOpt = (document.getElementById('mak-select') || {}).selectedOptions?.[0];
+            const adaItem = !!(makOpt && makOpt.dataset.item);
+            const angkaData = (v) => (v === undefined || v === '' ? null : parseInt(v, 10));
+            const paguAkun = makOpt ? angkaData(adaItem ? makOpt.dataset.paguAkun : makOpt.dataset.pagu) : null;
+            const paguItem = adaItem ? angkaData(makOpt.dataset.pagu) : null;
+            const rpLamp = (n) => (n === null || isNaN(n)) ? '' : 'Rp ' + ribuan(n);
+            const itemRow2 = document.getElementById('pv-item-row');
+            const totalBelanja = document.getElementById('pv-total-belanja');
+            const itemRow = document.getElementById('pv-lamp-item');
+            if (itemRow2) itemRow2.style.display = adaItem ? '' : 'none';
+            if (totalBelanja) totalBelanja.style.visibility = adaItem ? 'hidden' : '';
+            if (itemRow) itemRow.style.display = adaItem ? '' : 'none';
+            set('item_kode', adaItem ? makOpt.dataset.item : '');
+            set('item_uraian', adaItem ? makOpt.dataset.itemUraian : '');
+            set('item_lengkap', adaItem ? makOpt.dataset.item + '. ' + (makOpt.dataset.itemUraian || '') : '');
+            set('pagu_akun', rpLamp(paguAkun));
+            set('pagu_item', rpLamp(paguItem));
+            set('pengajuan', nominal ? 'Rp ' + ribuan(nominal) : '');
+            set('klasifikasi', field('klasifikasi') || 'PDN');
+            set('nilai', (field('nilai_persen') || '100') + '%');
+            set('perihal', (field('uraian_kegiatan') || '').trim());
+            set('penerima', field('penerima_nama').trim());
+            set('bank', field('penerima_bank').trim());
+            set('rekening', field('penerima_rekening').trim());
+            const bersih = parseInt((field('total_bersih') || '').replace(/\D/g, ''), 10) || nominal;
+            set('bersih', bersih ? 'Rp ' + ribuan(bersih) : '');
+            set('st', field('st_info').trim());
+
             const orang = {
                 ppk: pegawai('ppk_id'),
                 bendahara: pegawai('bendahara_id'),
@@ -541,6 +660,8 @@ Halaman 3 (Lampiran Memorandum) tidak ditampilkan karena datanya dari agenda.
         form.addEventListener('input', render);
         form.addEventListener('change', render);
         render();
+        // Kode giat/komponen/akun/belanja diisi skrip form yang dimuat setelah preview: render ulang setelah siap
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
         fit();
     })();
 </script>

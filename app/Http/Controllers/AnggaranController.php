@@ -32,7 +32,7 @@ class AnggaranController extends Controller
         $active = AnggaranUpload::where('is_active', true)->latest('id')->first();
 
         if (!$active) {
-            return response()->json(['upload' => null, 'items' => [], 'outstanding' => (object) []]);
+            return response()->json(['upload' => null, 'items' => [], 'outstanding' => (object) [], 'outstanding_item' => (object) []]);
         }
 
         // Pemetaan RO -> unit kerja dicocokkan di sini (saat data diambil), bukan saat import,
@@ -72,6 +72,8 @@ class AnggaranController extends Controller
             'items' => $items,
             // [kunci MAK => total outstanding]. Dipasang di baris Akun oleh halaman, lalu dijumlah ke atas.
             'outstanding' => (object) $this->outstandingPerKunci(),
+            // ["kunci MAK|kode item" => total outstanding] untuk memo yang dipilih sampai level item.
+            'outstanding_item' => (object) $this->outstandingPerItem(),
         ]);
     }
 
@@ -103,6 +105,23 @@ class AnggaranController extends Controller
                 continue;
             }
             $k = $this->kunciMak((string) $mak);
+            $hasil[$k] = ($hasil[$k] ?? 0) + $total;
+        }
+
+        return $hasil;
+    }
+
+    /** Total outstanding per "kunci MAK|kode item", hanya yang > 0. */
+    private function outstandingPerItem(): array
+    {
+        $hasil = [];
+        foreach (MakOutstandingService::perItem() as $kunci => $total) {
+            $total = (int) $total;
+            if ($total <= 0 || !str_contains($kunci, '|')) {
+                continue;
+            }
+            [$mak, $item] = explode('|', $kunci, 2);
+            $k = $this->kunciMak($mak) . '|' . trim($item);
             $hasil[$k] = ($hasil[$k] ?? 0) + $total;
         }
 

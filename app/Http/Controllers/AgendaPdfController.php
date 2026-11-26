@@ -102,6 +102,8 @@ class AgendaPdfController extends Controller
             'rincianBiaya' => $rincianBiaya,
             'totalBiaya' => $status === 'pns' ? $agenda->biaya_asn : $agenda->biaya_non_asn,
             'lampiran' => $this->buildLampiran($agenda, $statusLabel), // halaman 3
+            // Memo dari agenda sengaja TIDAK diberi tabel item (sudah 3 halaman, formatnya tetap).
+            // Tabel item & lampiran memorandum baru hanya untuk memo yang dibuat langsung (MemoController::pdf).
             'tipePembayaran' => $tipePembayaran,           // kode, mis. "ls"
             'tipePembayaranLabel' => $tipePembayaranLabel, // label lengkap utk dicetak
             // Baris "Hal" di halaman 1 memorandum (dibaca view sebagai $halMemo).

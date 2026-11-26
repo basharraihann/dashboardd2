@@ -7,6 +7,7 @@ use App\Models\MakOption;
 use App\Models\MemoEntry;
 use App\Models\Pegawai;
 use App\Models\Unit;
+use App\Services\MakItemService;
 use App\Services\MakSisaService;
 use App\Services\MemoTahapService;
 use App\Services\NomorMemoService;
@@ -245,6 +246,47 @@ class MemoController extends Controller
     /**
      * Endpoint AJAX buat tombol "Ambil Nomor Memo".
      */
+    /** Daftar item FA untuk satu MAK (dipakai pemilih item di form memo). */
+    public function itemMak(Request $request)
+    {
+        return response()->json(['items' => MakItemService::daftar($request->query('mak'))]);
+    }
+
+    /**
+     * Item anggaran dari pemilih MAK sampai level item (satu item per memo).
+     * - MAK yang punya item di FA aktif: item wajib dan harus milik MAK itu.
+     * - MAK tanpa item (manual / belum ada di FA): item_mak dikosongkan.
+     * Nominal memo tetap dari kolom Nominal; jumlah item = nominal.
+     */
+    private function terapkanItemMak(array $validated): array
+    {
+        $validated['item_mak'] = MakItemService::pilih(
+            $validated['item_kode'] ?? null,
+            $validated['mak'] ?? null,
+            (int) round((float) ($validated['nominal'] ?? 0)),
+            'item_kode'
+        );
+        unset($validated['item_kode']);
+
+        return $validated;
+    }
+
+    /**
+     * Data pemilih item: item FA per MAK (hanya MAK yang ada di daftar) dan outstanding per item.
+     *
+     * @return array{makItems: array, itemOutstanding: array}
+     */
+    private function dataItemMak($makOptions, ?int $kecualiEntryId = null): array
+    {
+        $semua = MakItemService::semua();
+        $makItems = array_intersect_key($semua, array_flip($makOptions->pluck('mak')->all()));
+
+        return [
+            'makItems' => $makItems,
+            'itemOutstanding' => MakSisaService::outstandingItemDetail($kecualiEntryId),
+        ];
+    }
+
     public function nomorBerikutnya()
     {
         return response()->json(NomorMemoService::dataBerikutnya());
@@ -267,14 +309,14 @@ class MemoController extends Controller
             'makOptions',
             'makOutstanding',
             'makSisaEfektif'
-        ));
+        ) + $this->dataItemMak($makOptions));
     }
 
     public function store(Request $request)
     {
         $this->normalisasiIsianManual($request);
 
-        $validated = $request->validate(self::rules());
+        $validated = $this->terapkanItemMak($request->validate(self::rules()));
 
         // jenis_nominatif cuma penentu redirect, bukan kolom di tabel memo.
         $jenisNominatif = $validated['jenis_nominatif'] ?? null;
@@ -338,7 +380,7 @@ class MemoController extends Controller
             'makOptions',
             'makOutstanding',
             'makSisaEfektif'
-        ));
+        ) + $this->dataItemMak($makOptions, $memo->id));
     }
 
     public function update(Request $request, MemoEntry $memo)
@@ -351,7 +393,7 @@ class MemoController extends Controller
 
         $this->normalisasiIsianManual($request);
 
-        $validated = $request->validate(self::rules());
+        $validated = $this->terapkanItemMak($request->validate(self::rules()));
 
         // jenis_nominatif cuma penentu redirect, bukan kolom di tabel memo.
         $jenisNominatif = $validated['jenis_nominatif'] ?? null;
@@ -505,6 +547,29 @@ class MemoController extends Controller
             'petugasVerifikasi' => $memo->petugasVerifikasi,
         ];
 
+        // Baris Lampiran Memorandum: baris akun, lalu satu baris per item yang dipilih.
+        $klasifikasi = $memo->klasifikasi ?: 'PDN';
+        $nilaiPersen = $memo->nilai_persen ?? 100;
+        $itemMemo = $memo->item_mak ?? [];
+        $petaItem = $itemMemo ? MakItemService::peta($memo->mak) : [];
+
+        $barisLampiran = [[
+            'kode' => $memo->mak,
+            'pagu' => $makOption?->pagu,
+            'pengajuan' => (int) $memo->nominal,
+            'klasifikasi' => $klasifikasi,
+            'nilai' => $nilaiPersen,
+        ]];
+        foreach ($itemMemo as $it) {
+            $barisLampiran[] = [
+                'kode' => $it['kode'] . '. ' . $it['uraian'],
+                'pagu' => $petaItem[$it['kode']]['pagu'] ?? null,
+                'pengajuan' => (int) $it['jumlah'],
+                'klasifikasi' => $klasifikasi,
+                'nilai' => $nilaiPersen,
+            ];
+        }
+
         $pdf = Pdf::loadView('pdf.memorandum', [
             'agenda' => $agendaProxy,
             'nomorMemo' => $memo->nomor_memo,
@@ -514,6 +579,22 @@ class MemoController extends Controller
             'terbilang' => null,
             'halMemo' => $halMemo,
             'lampiranMemo' => '1 (satu) Berkas', // tambahan
+            // Tabel item di bawah tabel Lampiran Surat (halaman 2).
+            'itemLampiran' => $itemMemo,
+            // Halaman 3: khusus memo yang dibuat langsung (memo_entries).
+            // Memo dari agenda tidak lewat sini, jadi lampirannya tidak berubah.
+            'lampiranMandiri' => [
+                'perihal' => $memo->uraian_kegiatan,
+                'total_pengajuan' => (int) $memo->nominal,
+                'baris' => $barisLampiran,
+                'penerima' => [
+                    'nama' => $memo->penerima_nama,
+                    'bank' => $memo->penerima_bank,
+                    'rekening' => $memo->penerima_rekening,
+                    'total_bersih' => $memo->total_bersih ?? (int) $memo->nominal,
+                ],
+                'st_info' => $memo->st_info ?: '-',
+            ],
         ])->setPaper('a4', 'portrait');
 
         $namaFile = 'Memorandum-' . str_replace(['/', '\\'], '-', $memo->nomor_memo) . '.pdf';
@@ -714,6 +795,18 @@ class MemoController extends Controller
             'tipe_pembayaran' => ['required', 'string', 'max:20'],
             'perlu_nominatif' => ['nullable', 'boolean'],
             'jenis_nominatif' => ['nullable', 'in:honorarium,custom'],
+            // Halaman 3 (Lampiran Memorandum). Semuanya boleh kosong.
+            'penerima_nama' => ['nullable', 'string', 'max:150'],
+            'penerima_bank' => ['nullable', 'string', 'max:50'],
+            'penerima_rekening' => ['nullable', 'string', 'max:50'],
+            'total_bersih' => ['nullable', 'numeric', 'min:0'],
+            'klasifikasi' => ['nullable', 'in:PDN,TKDN,Impor'],
+            'nilai_persen' => ['nullable', 'integer', 'between:0,100'],
+            'st_info' => ['nullable', 'string', 'max:150'],
+            // Item anggaran (MAK sampai level item). Dicek ke FA di terapkanItemMak().
+            'item_kode' => ['nullable', 'string', 'max:30'],
+            // Kolom item_mak tidak diisi dari form; aturan ini tetap untuk uji ulang memo tersimpan.
+            'item_mak' => ['nullable', 'array'],
         ];
     }
 }

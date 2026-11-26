@@ -16,7 +16,9 @@
 </head>
 
 <body>
-    @include('pdf._tanda-sistem')
+    {{-- Berkas SPD gabungan TANPA tanda "dibuat melalui sistem" di semua halamannya.
+         $tanpaTanda ikut terbawa ke rincian-biaya & pengeluaran-riil yang di-include di bawah. --}}
+    @php $tanpaTanda = true; @endphp
 
     <div class="page-break">
         @include('pdf.spd', ['agenda' => $agenda, 'pegawai' => $pegawai, 'ppk' => $ppk, 'nomorSt' => $nomorSt])

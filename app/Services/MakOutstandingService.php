@@ -50,4 +50,16 @@ class MakOutstandingService
 
         return $hasil;
     }
+
+    /**
+     * Outstanding per item dari SEMUA unit, kunci "MAK|kodeItem".
+     * Hanya memo yang menyimpan item (dipilih lewat pemilih MAK sampai level item).
+     * Memo lama tanpa item tetap terhitung di level MAK (perMak), tidak di sini.
+     *
+     * @return array<string,int>
+     */
+    public static function perItem(): array
+    {
+        return MakSisaService::outstandingItem(null, null, true);
+    }
 }

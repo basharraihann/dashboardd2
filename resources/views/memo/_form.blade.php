@@ -60,6 +60,7 @@ Mau ubah form memo? Cukup ubah file ini.
     $uraianKegiatan = old('uraian_kegiatan', $isEdit ? $memo->uraian_kegiatan : null);
     $nominalAwal = old('nominal', $isEdit ? (int) round((float) $memo->nominal) : null);
     $currentMak = old('mak', $isEdit ? $memo->mak : null);
+    $currentItem = old('item_kode', $isEdit ? \App\Services\MakItemService::kodePertama($memo->item_mak) : null);
     $sel = fn(string $field) => old($field, $isEdit ? $memo->{$field} : null);
     $currentTipe = old('tipe_pembayaran', $isEdit ? ($memo->tipe_pembayaran ?? 'ls') : 'ls');
 
@@ -498,6 +499,8 @@ Mau ubah form memo? Cukup ubah file ini.
                                         data-outstanding-lain="{{ (int) ($makOutstanding[$opt->mak]['lain'] ?? 0) }}"
                                         data-periode="{{ $opt->periode }}"
                                         data-per-tanggal="{{ $opt->per_tanggal ? \Carbon\Carbon::parse($opt->per_tanggal)->format('d/m/Y') : '' }}"
+                                        data-rekom="{{ ($opt->rekomendasi ?? false) ? 1 : 0 }}"
+                                        data-unit-pemilik="{{ implode(', ', $opt->unit_pemilik ?? []) }}"
                                         @selected($currentMak === $opt->mak)>
                                         {{ $opt->mak }}
                                     </option>
@@ -631,12 +634,15 @@ Mau ubah form memo? Cukup ubah file ini.
                         </p>
                     @endif
 
+                    {{-- MAK sampai level item + peringatan MAK unit lain --}}
+                    @include('partials.mak-item-picker', ['varian' => 'memo', 'kebutuhan' => 0])
+
                     <input type="text" id="mak-input" name="mak" value="{{ $currentMak }}" required
                         placeholder="7458.ABR.006.075.EE.524119"
                         class="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300 {{ $tampilkanManual ? '' : 'hidden' }}">
                     <p class="text-xs text-gray-400 mt-1.5">
-                        Format: KodeGiat.KodeKomponen.KodeAkun.KodeBelanja dipisah titik jadi 6 bagian. Kode di
-                        bawah ini otomatis terisi dari MAK.
+                        Pilih sampai level item. Format MAK: KodeGiat.KodeKomponen.KodeAkun.KodeBelanja dipisah
+                        titik jadi 6 bagian. Kode di bawah ini otomatis terisi dari MAK.
                     </p>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
@@ -668,7 +674,8 @@ Mau ubah form memo? Cukup ubah file ini.
 
                     {{-- Khusus edit: nominal memo ini sendiri sudah tercatat di realisasi FA --}}
                     @if ($memoSudahDiFa)
-                        <span id="sisa-mak-koreksi" class="hidden" data-mak="{{ $memo->mak }}"
+                        <span id="sisa-mak-koreksi" class="hidden"
+                            data-mak="{{ $memo->mak }}{{ $currentItem ? '|' . $currentItem : '' }}"
                             data-nominal="{{ (int) round((float) $memo->nominal) }}"></span>
                     @endif
 
@@ -696,6 +703,105 @@ Mau ubah form memo? Cukup ubah file ini.
                 </div>
             </div>
         </div>
+
+        {{-- ===== Section: Lampiran Memorandum (halaman 3 PDF) ===== --}}
+        @php
+            $lamp = fn ($k) => old($k, $isEdit ? $memo->{$k} : null);
+            $klasifikasiNow = $lamp('klasifikasi') ?: 'PDN';
+            $totalBersihAwal = $lamp('total_bersih');
+            $inputCls = 'w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300';
+            $labelCls = 'block text-xs font-semibold text-gray-500 mb-1.5 tracking-wide uppercase';
+        @endphp
+        <div
+            class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow  p-5 sm:p-6">
+            <div class="flex items-center gap-2.5 mb-6">
+                <div class="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-800">Lampiran Memorandum</h3>
+                    <p class="text-xs text-gray-400">Tampil sebagai halaman 3 pada PDF. Boleh dikosongkan dan diisi nanti.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div class="sm:col-span-2">
+                    <label class="{{ $labelCls }}">Nama Penerima Transfer</label>
+                    <input type="text" name="penerima_nama" value="{{ $lamp('penerima_nama') }}" maxlength="150"
+                        placeholder="Contoh: CV. Lubis Berkarya" class="{{ $inputCls }}">
+                    @error('penerima_nama')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="{{ $labelCls }}">Bank</label>
+                    <input type="text" name="penerima_bank" value="{{ $lamp('penerima_bank') }}" maxlength="50"
+                        placeholder="Contoh: MANDIRI" class="{{ $inputCls }}">
+                    @error('penerima_bank')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="{{ $labelCls }}">No. Rekening</label>
+                    <input type="text" name="penerima_rekening" value="{{ $lamp('penerima_rekening') }}" maxlength="50"
+                        inputmode="numeric" placeholder="Contoh: 1030010004170" class="{{ $inputCls }}">
+                    @error('penerima_rekening')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label class="{{ $labelCls }}">Total Bersih</label>
+                    <div class="relative">
+                        <span
+                            class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">Rp</span>
+                        <input type="text" inputmode="numeric" name="total_bersih" id="total-bersih-input"
+                            value="{{ $totalBersihAwal }}" placeholder="Kosong = sama dengan Nominal"
+                            class="w-full border border-gray-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition placeholder:text-gray-300">
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Nominal setelah potongan (mis. pajak). Kosongkan jika tidak ada potongan.</p>
+                    @error('total_bersih')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="{{ $labelCls }}">Klasifikasi</label>
+                        <select name="klasifikasi" class="{{ $inputCls }}">
+                            @foreach (['PDN', 'TKDN', 'Impor'] as $opsi)
+                                <option value="{{ $opsi }}" @selected($klasifikasiNow === $opsi)>{{ $opsi }}</option>
+                            @endforeach
+                        </select>
+                        @error('klasifikasi')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="{{ $labelCls }}">Nilai %</label>
+                        <input type="number" name="nilai_persen" min="0" max="100"
+                            value="{{ $lamp('nilai_persen') ?? 100 }}" class="{{ $inputCls }}">
+                        @error('nilai_persen')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="{{ $labelCls }}">ST (Surat Tugas)</label>
+                    <input type="text" name="st_info" value="{{ $lamp('st_info') }}" maxlength="150"
+                        placeholder="Kosong = tampil &quot;-&quot;" class="{{ $inputCls }}">
+                    @error('st_info')<p class="text-xs text-red-500 mt-1">{{ $message }}</p>@enderror
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Total Bersih: format ribuan saat mengetik, titik dibuang saat submit (sama seperti kolom Nominal).
+            (function () {
+                const el = document.getElementById('total-bersih-input');
+                if (!el) return;
+                const fmt = function (v) { return String(v).replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); };
+                if (el.value) el.value = fmt(el.value);
+                el.addEventListener('input', function () { this.value = fmt(this.value); });
+                const form = el.closest('form');
+                if (form) form.addEventListener('submit', function () { el.value = el.value.replace(/\./g, ''); });
+            })();
+        </script>
 
         {{-- Actions --}}
         <div
@@ -843,9 +949,11 @@ Mau ubah form memo? Cukup ubah file ini.
             }
 
             makInput.classList.add('hidden');
-            makInput.value = makSelect.value;
+            // Option item bernilai "MAK|kodeItem": yang dikirim sebagai MAK tetap 6 bagian (data-mak)
+            const optDipilih = makSelect.selectedOptions[0];
+            makInput.value = (optDipilih && optDipilih.dataset.mak) || makSelect.value;
             makInput.dispatchEvent(new Event('input'));
-            isiUraian(makSelect.selectedOptions[0]);
+            isiUraian(optDipilih);
         });
 
         isiUraian(makSelect.selectedOptions[0]);

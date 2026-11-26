@@ -215,6 +215,16 @@
             text-align: center;
         }
 
+        table.rp {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.lamp3 table.rp td {
+            border: none;
+            padding: 0;
+        }
+
         .lamp3-box {
             border: 1px solid #000;
             border-top: none;
@@ -360,8 +370,21 @@
                         @endforeach
                     @endif
                 </td>
-                <td class="text-right"><strong>Rp.{{ number_format($totalBiaya, 0, ',', '.') }}</strong></td>
+                {{-- Kalau ada item, jumlah cukup ditulis sekali di baris item (tidak dobel) --}}
+                <td class="text-right">
+                    @if(empty($itemLampiran))
+                        <strong>Rp.{{ number_format($totalBiaya, 0, ',', '.') }}</strong>
+                    @endif
+                </td>
             </tr>
+            {{-- Rincian item: satu tabel dengan baris di atas (hanya memo langsung; memo agenda tidak mengirim $itemLampiran) --}}
+            @foreach($itemLampiran ?? [] as $it)
+                <tr>
+                    <td>{{ $it['kode'] }}</td>
+                    <td>{{ $it['uraian'] }}</td>
+                    <td class="text-right"><strong>Rp.{{ number_format((int) $it['jumlah'], 0, ',', '.') }}</strong></td>
+                </tr>
+            @endforeach
         </tbody>
     </table>
 
@@ -507,6 +530,77 @@
         </table>
         <div class="lamp3-box">{{ $lampiran['st_info'] }}</div>
         <div class="lamp3-box">Perihal: {{ $lampiran['perihal'] }}</div>
+    @endif
+
+    {{-- ================= HALAMAN 3 (memo langsung): LAMPIRAN MEMORANDUM ================= --}}
+    {{-- Tampil hanya kalau controller mengirim $lampiranMandiri (memo_entries). Memo agenda memakai blok di atas. --}}
+    @if(!empty($lampiranMandiri))
+        @php
+            $lm = $lampiranMandiri;
+            $rp = fn ($n) => '<table class="rp"><tr><td>Rp</td><td style="text-align:right;">'
+                . number_format((int) $n, 0, ',', '.') . '</td></tr></table>';
+            $totalPengajuan = $lm['total_pengajuan'] ?? collect($lm['baris'])->sum('pengajuan');
+        @endphp
+
+        <div class="page-break"></div>
+
+        <div style="text-align:center; font-weight:bold; font-size:13px; margin-bottom:10px;">LAMPIRAN MEMORANDUM</div>
+        <div style="text-align:center; font-weight:bold; font-size:13px; margin-bottom:6px;">{{ $lm['perihal'] }}</div>
+
+        <table class="lamp3" style="margin-bottom:18px;">
+            <tr>
+                <th>Kode Akun/Item</th>
+                <th style="width:100px;">Pagu</th>
+                <th style="width:100px;">Pengajuan</th>
+                <th style="width:90px;">Klasifikasi<br>(TKDN, PDN, Impor)</th>
+                <th style="width:60px;">Nilai %</th>
+            </tr>
+            @foreach($lm['baris'] as $b)
+                <tr>
+                    <td>{{ $b['kode'] }}</td>
+                    <td>@if($b['pagu'] !== null){!! $rp($b['pagu']) !!}@else<div class="text-center">-</div>@endif</td>
+                    <td>{!! $rp($b['pengajuan']) !!}</td>
+                    <td class="text-center">{{ $b['klasifikasi'] }}</td>
+                    <td class="text-center">{{ $b['nilai'] }}%</td>
+                </tr>
+            @endforeach
+            <tr>
+                <td class="text-center">TOTAL</td>
+                <td></td>
+                <td>{!! $rp($totalPengajuan) !!}</td>
+                <td></td>
+                <td></td>
+            </tr>
+        </table>
+
+        <div style="text-align:center; font-weight:bold; font-size:13px; margin-bottom:6px;">RINCIAN TRANSFER</div>
+        <table class="lamp3" style="margin-bottom:0;">
+            <tr>
+                <th>Nama</th>
+                <th colspan="2">Keterangan Transfer</th>
+                <th style="width:120px;">Total Bersih (Rp)</th>
+            </tr>
+            <tr>
+                <td>{{ $lm['penerima']['nama'] ?: '-' }}</td>
+                <td class="text-center" style="width:90px;">{{ $lm['penerima']['bank'] ?: '-' }}</td>
+                <td class="text-center" style="width:120px;">{{ $lm['penerima']['rekening'] ?: '-' }}</td>
+                <td>{!! $rp($lm['penerima']['total_bersih']) !!}</td>
+            </tr>
+            <tr>
+                <td colspan="3" class="text-right"><strong>Total</strong></td>
+                <td>{!! $rp($lm['penerima']['total_bersih']) !!}</td>
+            </tr>
+        </table>
+        <table class="lamp3" style="margin-bottom:0; margin-top:-1px;">
+            <tr>
+                <td style="width:60px; padding:5px;">ST</td>
+                <td style="padding:5px;">{{ $lm['st_info'] }}</td>
+            </tr>
+            <tr>
+                <td style="padding:18px 5px;">Perihal</td>
+                <td style="padding:18px 5px;">{{ $lm['perihal'] }}</td>
+            </tr>
+        </table>
     @endif
 
 </body>
