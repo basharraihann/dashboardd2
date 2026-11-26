@@ -120,13 +120,39 @@ class MakSisaService
             ->where(fn($q) => $q->whereNotNull('item_mak_pns')->orWhereNotNull('item_mak_non_pns'))
             ->get()
             ->each(function ($a) use ($tambah) {
-                if (filled($a->nomor_memo_pns) && ($a->status_pns ?: 'outstanding') === 'outstanding') {
+                // Aturan status sama persis dengan outstanding() per MAK
+                if (filled($a->nomor_memo_pns) && $a->status_pns === 'outstanding') {
                     $tambah($a->mak, $a->item_mak_pns);
                 }
-                if (filled($a->nomor_memo_non_pns) && ($a->status_non_pns ?: 'outstanding') === 'outstanding') {
+                if (filled($a->nomor_memo_non_pns) && $a->status_non_pns === 'outstanding') {
                     $tambah($a->mak, $a->item_mak_non_pns);
                 }
             });
+
+        // Memo lama (dibuat sebelum MAK sampai item) tidak menyimpan item.
+        // Kalau akunnya di FA hanya punya SATU item, sisa outstanding akun yang belum
+        // menempel ke item pasti milik item itu -> ikut dihitung di item tersebut.
+        // Akun dengan beberapa item: sisa itu tetap hanya di level akun (tidak ditebak).
+        $perMak = self::outstanding($kecualiEntryId, $kecualiAgendaId, $semuaUnit);
+        $itemFa = MakItemService::semua();
+        foreach ($perMak as $mak => $totalAkun) {
+            $mak = trim((string) $mak);
+            $daftar = $itemFa[$mak] ?? [];
+            if (count($daftar) !== 1) {
+                continue;
+            }
+            $k = $mak . '|' . $daftar[0]['kode'];
+            $sudahDiItem = 0;
+            foreach ($hasil as $kunci => $nilai) {
+                if (str_starts_with($kunci, $mak . '|')) {
+                    $sudahDiItem += $nilai;
+                }
+            }
+            $sisa = (int) $totalAkun - $sudahDiItem;
+            if ($sisa > 0) {
+                $hasil[$k] = ($hasil[$k] ?? 0) + $sisa;
+            }
+        }
 
         return $hasil;
     }

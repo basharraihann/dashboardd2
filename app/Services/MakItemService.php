@@ -138,6 +138,13 @@ class MakItemService
             return [];
         }
 
+        // Cache per request (dipanggil beberapa kali saat hitung outstanding per item)
+        static $cache = [];
+        $kunciCache = $upload->id . '@' . $upload->updated_at;
+        if (isset($cache[$kunciCache])) {
+            return $cache[$kunciCache];
+        }
+
         $hasil = [];
         $rows = DB::table('anggaran_items')
             ->where('anggaran_upload_id', $upload->id)
@@ -172,7 +179,7 @@ class MakItemService
             ));
         }
 
-        return $hasil;
+        return $cache[$kunciCache] = $hasil;
     }
 
     /** MAK 6 bagian dari satu baris anggaran_items (sama dengan MakSyncService). */
